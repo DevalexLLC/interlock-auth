@@ -1,0 +1,20 @@
+{
+  "cSpell.words": [
+    "Devalex",
+    "devalexllc",
+    "Dsonar",
+    "infralytics",
+    "npmjs",
+    "Qube",
+    "sonarlint",
+    "sonarqube",
+    "sonarsource",
+    "tsgolint",
+    "typechecks",
+    "vitest"
+  ],
+  "sonarlint.connectedMode.project": {
+    "connectionId": "Devalex",
+    "projectKey": "Devalex:interlock-auth"
+  }
+}

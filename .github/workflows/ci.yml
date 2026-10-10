@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Nothing here writes to the repo — the jobs check out, build, test and hand a
+# report to SonarQube. Declared rather than inherited so tightening or loosening
+# the repository default cannot silently change what this workflow can do.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      # Both results are useful; a failure on the floor shouldn't hide the
+      # state of the current LTS, or vice versa.
+      fail-fast: false
+      matrix:
+        # The `engines.node` floor and the version we develop against. The
+        # floor is only a real claim if it is exercised. 22.18 is where
+        # native TS type-stripping landed, which oxfmt.config.ts and
+        # oxlint.config.ts need in order to load at all. The upper entry
+        # tracks release.yml, which needs 24.20 for npm 11.19's OIDC support.
+        node: [22.18.0, 24.20.0]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run fmt:check
+      # `lint` is `oxlint --type-aware --type-check`, which runs tsgolint — this
+      # is the only type checking on the runner, same arrangement as
+      # infralytics-cfe.
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      # The published entry points must actually resolve. A broken `exports`
+      # map typechecks fine and fails only in the consumer, so install the
+      # packed tarball into a throwaway project and import every subpath by
+      # its package name, the way a consumer would.
+      - name: Verify package contents
+        run: |
+          consumer="$(mktemp -d)"
+          npm pack --pack-destination "$consumer"
+          cd "$consumer"
+          npm init -y >/dev/null
+          npm install --silent ./*.tgz
+          for sub in "" "/next" "/react"; do
+            echo "import @devalexllc/interlock-auth$sub"
+            node --input-type=module -e "await import('@devalexllc/interlock-auth$sub')"
+          done
+
+  # A separate job, not a step in the matrix: the analysis is a property of the
+  # code, not of the Node version it ran under, and pushing the same project key
+  # twice from one workflow just makes the second scan overwrite the first.
+  sonar:
+    name: sonar
+    # Restricted to `main` on purpose. The instance is Community Edition with no branch plugin, so
+    # it has no concept of branches or pull requests: every analysis it receives is recorded as
+    # the project's main branch under the single key `Devalex:interlock-auth`. Scanning any other
+    # ref therefore overwrites main's snapshot with unmerged code.
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Shallow clones hide the blame data SonarQube uses to attribute issues.
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          # Tracks the upper matrix entry; nothing here needs the 22.18 floor.
+          node-version: 24.20.0
+          cache: npm
+      - run: npm ci
+      - run: npm run test:coverage
+
+      # `sonar.projectVersion` must move for a New Code definition of "previous version" to have a
+      # baseline that ever advances — on `main`, `github.ref_name` is the literal string "main" on
+      # every analysis. The release tag is the version this repo actually publishes, so use it;
+      # the package version is the fallback for a checkout with no tags.
+      - name: Resolve SonarQube project version
+        if: ${{ vars.SONAR_HOST_URL }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          version="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+          if [ -z "$version" ]; then
+            version="v$(node -p "require('./package.json').version")"
+            echo "::warning::No tag found; falling back to the package version $version"
+          fi
+          echo "Sonar project version: $version"
+          echo "SONAR_PROJECT_VERSION=$version" >> $GITHUB_ENV
+
+      # v3 on purpose: it is the line the rest of the DevalexLLC projects run against this
+      # SonarQube instance, and the one `SONAR_ROOT_CERT` is known to work with.
+      - name: SonarQube Scan
+        if: ${{ vars.SONAR_HOST_URL }}
+        uses: sonarsource/sonarqube-scan-action@v3
+        with:
+          args: -Dsonar.projectVersion=${{ env.SONAR_PROJECT_VERSION }}
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+          SONAR_ROOT_CERT: ${{ secrets.CACERT_PEM }}
