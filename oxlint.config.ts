@@ -18,9 +18,20 @@ export default defineConfig({
   env: {
     browser: true,
     builtin: true,
+    // The root entry runs on the server (`process`, `Buffer`, `node:*`).
+    node: true,
     vitest: true,
   },
   ignorePatterns: ["dist/", "node_modules/", "package-lock.json"],
+  overrides: [
+    {
+      // The core's loops are sequential by design: the refresh lease's rounds and its polling
+      // wait (each step depends on the row the previous one read), the hook composition (order is
+      // the contract) and the shutdown drain. None has independent iterations to run together.
+      files: ["src/core/**"],
+      rules: { "no-await-in-loop": "off" },
+    },
+  ],
   options: {
     maxWarnings: 0,
     typeAware: true,
