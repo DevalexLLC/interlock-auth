@@ -44,17 +44,63 @@ jobs:
       # map typechecks fine and fails only in the consumer, so install the
       # packed tarball into a throwaway project and import every subpath by
       # its package name, the way a consumer would.
+      #
+      # The package builds with Bundler resolution, but `apps/interlock`
+      # consumes the root entry from an ESM project under NodeNext, so the
+      # root's declarations are also type-checked that way, strict, with the
+      # app's `skipLibCheck` (Better Auth's own declarations name `bun:` and
+      # `node:` modules a consumer without those types cannot resolve).
       - name: Verify package contents
         run: |
+          tsgo="$PWD/node_modules/.bin/tsgo"
           consumer="$(mktemp -d)"
           npm pack --pack-destination "$consumer"
           cd "$consumer"
           npm init -y >/dev/null
+          npm pkg set type=module
           npm install --silent ./*.tgz
           for sub in "" "/next" "/react"; do
             echo "import @devalexllc/interlock-auth$sub"
             node --input-type=module -e "await import('@devalexllc/interlock-auth$sub')"
           done
+          cat > consumer.ts <<'EOF'
+          import type { BetterAuthOptions } from "better-auth";
+          import type { Kysely } from "kysely";
+
+          import {
+            createGrantRefresher,
+            createKeycloakAuthOptions,
+            createPostgresStore,
+            InFlightWork,
+            KyselyGrantStore,
+            normalizeClaims,
+            REFRESH_DEFAULTS,
+            type AuthLogger,
+            type KeycloakAuthConfig,
+            type NormalizedClaims,
+          } from "@devalexllc/interlock-auth";
+
+          declare const config: KeycloakAuthConfig;
+          declare const db: Kysely<unknown>;
+          declare const logger: AuthLogger;
+
+          const grants = new KyselyGrantStore(db, "interlock");
+          const options: BetterAuthOptions = createKeycloakAuthOptions(config, {
+            database: createPostgresStore(db, "interlock"),
+            grants,
+            logger,
+          });
+          const refresher = createGrantRefresher(
+            grants,
+            { keycloak: config.keycloak, refresh: REFRESH_DEFAULTS },
+            { logger, inFlight: new InFlightWork() },
+          );
+          const claims: NormalizedClaims = normalizeClaims({ groups: ["a"] });
+
+          export { claims, options, refresher };
+          EOF
+          echo "type-check consumer.ts (NodeNext)"
+          "$tsgo" --noEmit --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck consumer.ts
 
   # A separate job, not a step in the matrix: the analysis is a property of the
   # code, not of the Node version it ran under, and pushing the same project key
