@@ -1,0 +1,54 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #19313c;
+  background: #f3f6f8;
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 960px;
+  margin: auto;
+  padding: 2rem;
+}
+h1 {
+  margin: 0.4rem 0;
+}
+.eyebrow {
+  letter-spacing: 0.12em;
+  font-size: 0.75rem;
+}
+section,
+aside {
+  background: white;
+  padding: 1.5rem;
+  margin: 1rem 0;
+  border: 1px solid #cedbe0;
+  border-radius: 0.5rem;
+}
+aside {
+  border-color: #c68224;
+  background: #fff4dc;
+}
+button {
+  padding: 0.55rem 0.8rem;
+  margin: 0.25rem;
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+}
+article {
+  border-top: 1px solid #cedbe0;
+  padding: 0.5rem 0;
+}
+a {
+  color: #155c79;
+}
+pre {
+  overflow: auto;
+}
+footer {
+  color: #52656d;
+  font-size: 0.85rem;
+}
