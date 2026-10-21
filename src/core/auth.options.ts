@@ -1,3 +1,5 @@
+/** Keycloak owns user.username; Better Auth migrates the optional column and refreshes
+ * mapped user fields on each login, including users created before this field existed. */
 import type { BetterAuthOptions } from "better-auth";
 import { genericOAuth, keycloak } from "better-auth/plugins/generic-oauth";
 import type { Kysely } from "kysely";
@@ -13,6 +15,7 @@ import {
 import { grantHooks } from "./grants/grant-hooks.js";
 import type { GrantStore } from "./grants/grant-store.js";
 import { keycloakAccountSubject, mapKeycloakProfile } from "./keycloak-profile.js";
+import { keycloakUserFields } from "./keycloak-user.js";
 import type { AuthLogger } from "./logger.js";
 import { backchannelLogout } from "./logout/backchannel.js";
 import { captureSignOut, finishSignOut } from "./logout/sign-out.js";
@@ -147,6 +150,7 @@ export function createKeycloakAuthOptions(
   const issuer = config.keycloak.issuer.replace(/\/+$/, "");
   const endpoint = (name: string) => `${issuer}/protocol/openid-connect/${name}`;
   const receiverRoute = receiverRouteOf(config);
+  const userFields = keycloakUserFields();
 
   return {
     baseURL: config.betterAuth.url,
@@ -169,6 +173,7 @@ export function createKeycloakAuthOptions(
     // could only write the clamped value back and reissue the cookie on every
     // `get-session`. The session update hook still clamps any slide.
     session: { cookieCache: { enabled: false }, disableSessionRefresh: true },
+    user: userFields.user,
     account: { encryptOAuthTokens: true, storeAccountCookie: false },
     // The exposure hook runs first, so a route outside the allow-list, or an
     // `idToken` sign-in, runs nothing else (`exposure.ts`). The callback's
@@ -202,7 +207,7 @@ export function createKeycloakAuthOptions(
     // logouts must never meet a 429; the receiver bounds its own cost (one
     // JWKS fetch per second at most, `logout/backchannel.ts`).
     rateLimit: { customRules: { [receiverRoute]: false } },
-    databaseHooks: grantHooks(grants, logger),
+    databaseHooks: { ...grantHooks(grants, logger), user: userFields.hooks },
     advanced: {
       ...cookieSettings(config.cookieNamePolicy, cookiePrefix),
       // Better Auth turns both checks off whenever NODE_ENV is `test` or TEST
@@ -232,6 +237,7 @@ export function createKeycloakAuthOptions(
             // the server instead (`logout/sign-out.ts`), so no token or
             // Keycloak URL reaches the browser.
             disableProviderLogout: true,
+            overrideUserInfo: true,
             accountSubject: keycloakAccountSubject,
             mapProfileToUser: mapKeycloakProfile,
           },

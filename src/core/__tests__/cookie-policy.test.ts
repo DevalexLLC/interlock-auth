@@ -50,10 +50,17 @@ describe.each(COOKIE_NAME_POLICIES)("cookie-name policy %s", (policy: CookieName
   /** A user with a session; `due` makes the session ready for its refresh. */
   const signedIn = async (due: boolean) => {
     const ctx = await auth.$context;
-    const user = await ctx.internalAdapter.createUser(
-      { email: `ann-${crypto.randomUUID()}@example.com`, name: "ann", emailVerified: true },
-      { method: "oauth", oauth: { providerId: "keycloak" } },
-    );
+    // Seed the fixture directly: OAuth user writes now require an endpoint context.
+    const user = await ctx.adapter.create<{ id: string }>({
+      model: "user",
+      data: {
+        email: `ann-${crypto.randomUUID()}@example.com`,
+        name: "ann",
+        emailVerified: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
     const { expiresIn, updateAge } = ctx.sessionConfig;
     // get-session refreshes once `expiresAt - expiresIn + updateAge <= now`.
     // `createSession` spreads the override before its own `expiresAt`, so

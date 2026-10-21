@@ -58,6 +58,12 @@ entry exports:
   back-channel logout receiver, and the cookie-name policy. It is pure: nothing connects until
   Better Auth initializes. `createPostgresStore`, `cookieSettings` and `KEYCLOAK_SCOPES` are
   the pieces it uses.
+- **Username.** `user.username` carries Keycloak’s `preferred_username` independently of
+  the display name. The optional, server-managed field is added by Better Auth’s migrator.
+  `overrideUserInfo` refreshes mapped fields on login, so existing users acquire their
+  username on their next login; no backfill is needed. The field stays `input: false`: a
+  request-scoped provider-validation hook carries the verified username into user writes,
+  because Better Auth 1.7.7 otherwise strips it from OAuth profiles too.
 - **Session-scoped grants.** Each session's Keycloak tokens live on its own `session_grant`
   row, never on `account`. `KyselyGrantStore` is the runtime store; `GrantStore` is its
   interface. `createGrantRefresher` builds the refresh lease state machine, whose

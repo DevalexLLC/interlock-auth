@@ -38,6 +38,7 @@ const subject = (profile: KeycloakProfile) => {
 export function mapKeycloakProfile(profile: KeycloakProfile) {
   const email = claim(profile.email);
   return {
+    username: claim(profile.preferred_username),
     name: claim(profile.name) ?? claim(profile.preferred_username),
     email: email ?? `${subject(profile) ?? "unknown"}@${PLACEHOLDER_EMAIL_DOMAIN}`,
     // Set every time: Better Auth spreads this over its own mapping, and a
