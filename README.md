@@ -63,7 +63,10 @@ entry exports:
   `overrideUserInfo` refreshes mapped fields on login, so existing users acquire their
   username on their next login; no backfill is needed. The field stays `input: false`: a
   request-scoped provider-validation hook carries the verified username into user writes,
-  because Better Auth 1.7.7 otherwise strips it from OAuth profiles too.
+  because Better Auth 1.7.7 otherwise strips it from OAuth profiles too. `input: true` would
+  avoid the hook, and Interlock's exposure allow-list already refuses every client route that
+  writes a user, but a host that mounts Better Auth's full handler would then accept a
+  username from the browser; the hook keeps the field server-owned under every host.
 - **Session-scoped grants.** Each session's Keycloak tokens live on its own `session_grant`
   row, never on `account`. `KyselyGrantStore` is the runtime store; `GrantStore` is its
   interface. `createGrantRefresher` builds the refresh lease state machine, whose
