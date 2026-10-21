@@ -16,7 +16,12 @@ describe("mapKeycloakProfile", () => {
         email: "ann@example.com",
         email_verified: true,
       }),
-    ).toEqual({ name: "Ann Example", email: "ann@example.com", emailVerified: true });
+    ).toEqual({
+      username: "ann",
+      name: "Ann Example",
+      email: "ann@example.com",
+      emailVerified: true,
+    });
   });
 
   it.each([
@@ -27,6 +32,13 @@ describe("mapKeycloakProfile", () => {
   ])("should fall back to preferred_username when name is %s", (_, name) => {
     expect(mapKeycloakProfile({ sub: "f3a1", name, preferred_username: "ann" }).name).toBe("ann");
   });
+
+  it.each([undefined, null, "", "  ", 42])(
+    "should omit an unusable username (%s)",
+    (preferred_username) => {
+      expect(mapKeycloakProfile({ preferred_username }).username).toBeUndefined();
+    },
+  );
 
   it("should give a profile without email a placeholder that is never verified", () => {
     const user = mapKeycloakProfile({ sub: "f3a1", email: " ", email_verified: true });

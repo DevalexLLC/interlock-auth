@@ -71,6 +71,7 @@ describe("createKeycloakAuthOptions", () => {
         tokenUrl: `${base}/protocol/openid-connect/token`,
         userInfoUrl: `${base}/protocol/openid-connect/userinfo`,
         disableProviderLogout: true,
+        overrideUserInfo: true,
       });
       expect(provider.scopes).toEqual(["openid", "profile", "email"]);
       expect(provider.redirectURI).toBeUndefined();
@@ -82,6 +83,9 @@ describe("createKeycloakAuthOptions", () => {
   it("should keep sessions and tokens on the server, in the store it is given", () => {
     const options = build();
 
+    expect(options.user?.additionalFields).toEqual({
+      username: { type: "string", required: false, input: false },
+    });
     expect(options.database).toBe(store);
     expect(options.session?.cookieCache?.enabled).toBe(false);
     expect(options.account).toEqual({ encryptOAuthTokens: true, storeAccountCookie: false });

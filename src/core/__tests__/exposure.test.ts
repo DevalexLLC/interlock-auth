@@ -120,10 +120,26 @@ describe("route exposure", () => {
 
     expect(res.status).toBe(200);
     expect(body.session.token).toEqual(expect.any(String));
+    expect(body).toMatchObject({ user: { username: "ann" } });
     const keys = keysOf(body);
     for (const field of TOKEN_FIELDS) {
       expect(keys).not.toContain(field);
     }
+  });
+
+  it("should populate an existing user’s username on the next login", async () => {
+    const setup = buildAuth();
+    await setup.login();
+    const user = setup.tables.user?.[0];
+    expect(user).toBeDefined();
+    if (!user) throw new Error("Expected a user");
+    delete user.username;
+    const { cookie } = await setup.login();
+    const res = await setup.auth.handler(
+      new Request(`${BASE}/api/auth/get-session`, { headers: { cookie } }),
+    );
+    expect(await res.json()).toMatchObject({ user: { username: "ann" } });
+    expect(setup.tables.user).toHaveLength(1);
   });
 
   describe("an idToken sign-in body, with discovery on", () => {
