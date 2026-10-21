@@ -22,7 +22,8 @@ export interface InterlockProviderProps {
   uri?: string;
   children: ReactNode;
   onSessionEnded?: (info: SessionEndedInfo) => void;
-  callbackURL?: string;
+  /** Where login returns; a function is read at each sign-in. Default: the page URL at that moment. */
+  callbackURL?: string | (() => string);
   refetchIntervalSeconds?: number;
   unavailableRetryMs?: number;
   socket?: { enabled?: boolean; backoff?: BackoffOptions };
@@ -42,8 +43,11 @@ export function InterlockProvider(props: InterlockProviderProps) {
     const auth = createInterlockAuthClient(endpoints, props);
     const controller = createSessionController({
       ...auth,
-      callbackURL:
-        props.callbackURL ?? (typeof window === "undefined" ? undefined : window.location.href),
+      callbackURL: () => {
+        const { callbackURL } = props;
+        if (typeof callbackURL === "function") return callbackURL();
+        return callbackURL ?? (typeof window === "undefined" ? undefined : window.location.href);
+      },
       onSessionEnded: props.onSessionEnded,
       now: timers.now,
     });

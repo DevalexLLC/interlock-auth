@@ -210,6 +210,25 @@ describe("InterlockProvider with real Better Auth client", () => {
       });
     },
   );
+  it("login returns to the route current at sign-in time, not the one at mount", async () => {
+    const navigate = vi.fn<(url: string) => void>();
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async (input) => {
+      const path = requestPath(input);
+      if (path.endsWith("get-session")) return Response.json(session());
+      if (path.endsWith("sign-in/social"))
+        return Response.json({ url: "https://keycloak.test/login", redirect: true });
+      return unauthorized("refresh_indeterminate");
+    });
+    mount(fetch, { navigate });
+    await phase("signed_in");
+    window.history.pushState({}, "", "/catalog?tab=mine");
+    fireEvent.click(screen.getByText("Read"));
+    await waitFor(() => expect(navigate).toHaveBeenCalledTimes(1));
+    const call = fetch.mock.calls.find(([input]) => requestPath(input).endsWith("sign-in/social"));
+    expect(JSON.parse(call?.[1]?.body as string)).toMatchObject({
+      callbackURL: `${window.location.origin}/catalog?tab=mine`,
+    });
+  });
   it.each([200, 503])(
     "logout %i records outcome and closes the socket immediately",
     async (status) => {

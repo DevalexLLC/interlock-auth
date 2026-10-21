@@ -131,7 +131,7 @@ function Dashboard() {
         <>
           <section>
             <h2>{session.user?.name}</h2>
-            <p>Username: {username ?? "Not yet provided — sign in again after migrating"}</p>
+            <p>Username: {username ?? "Not provided yet; sign in again after the migration"}</p>
             <p>
               Email:{" "}
               {session.user?.email.endsWith("@keycloak.invalid")

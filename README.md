@@ -232,16 +232,16 @@ Provider configuration is fixed at mount; remount to change it. An absolute `uri
 that origin; omitted, empty, and relative values select the page origin. The auth and socket
 paths are always `/api/auth` and `/ws/irongate`.
 
-| Prop                                       | Default                          | Purpose                                                          |
-| ------------------------------------------ | -------------------------------- | ---------------------------------------------------------------- |
-| `uri`                                      | Page origin                      | Interlock origin                                                 |
-| `callbackURL`                              | Current page URL                 | Return URL for explicit and automatic login                      |
-| `onSessionEnded`                           | None                             | Synchronously clear user caches before publishing an ended state |
-| `refetchIntervalSeconds`                   | `60`                             | Better Auth session polling; `0` disables polling                |
-| `unavailableRetryMs`                       | `5000`                           | Retry first-load session failures; `0` disables the timer        |
-| `socket.enabled`                           | `true`                           | Connect notifications while signed in                            |
-| `socket.backoff`                           | `{ baseMs: 1000, capMs: 30000 }` | Full-jitter reconnect delay                                      |
-| `fetch`, `WebSocket`, `navigate`, `timers` | Browser implementations          | Injectable ports for hosts and tests                             |
+| Prop                                       | Default                          | Purpose                                                                         |
+| ------------------------------------------ | -------------------------------- | ------------------------------------------------------------------------------- |
+| `uri`                                      | Page origin                      | Interlock origin                                                                |
+| `callbackURL`                              | Page URL at sign-in time         | Return URL for explicit and automatic login; a function is read at each sign-in |
+| `onSessionEnded`                           | None                             | Synchronously clear user caches before publishing an ended state                |
+| `refetchIntervalSeconds`                   | `60`                             | Better Auth session polling; `0` disables polling                               |
+| `unavailableRetryMs`                       | `5000`                           | Retry first-load session failures; `0` disables the timer                       |
+| `socket.enabled`                           | `true`                           | Connect notifications while signed in                                           |
+| `socket.backoff`                           | `{ baseMs: 1000, capMs: 30000 }` | Full-jitter reconnect delay                                                     |
+| `fetch`, `WebSocket`, `navigate`, `timers` | Browser implementations          | Injectable ports for hosts and tests                                            |
 
 `useInterlockSession()` returns `{ phase, generation, reLoginUsedFor, dependency, user,
 isSignedIn, signIn, signOut, retry }`. `phase.kind` is `loading`, `unavailable`, `signed_in`,

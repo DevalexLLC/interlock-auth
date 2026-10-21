@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { fakePorts, session, signedIn } from "./__tests__/helpers/fake-ports.js";
 import { dependencyFailure } from "./dependency-failure.js";
-import { createSessionController } from "./session-controller.js";
+import { UpstreamError } from "./errors.js";
+import { createSessionController, type SessionPorts } from "./session-controller.js";
 
 describe("session effect ordering", () => {
   it("notifies before publish and queues re-entrant dispatch until after publish", () => {
@@ -26,6 +27,33 @@ describe("session effect ordering", () => {
     const { ports, controller } = signedIn();
     controller.dispatch({ type: "unauthorized", generation: 0, reason: "refresh_indeterminate" });
     expect(ports.signIn).toHaveBeenCalledWith({ callbackURL: ports.callbackURL });
+  });
+  it("a callbackURL function is read at each sign-in, not when the controller is built", async () => {
+    let current = "https://demo.test/mounted";
+    const ports = { ...fakePorts(), callbackURL: () => current };
+    const controller = createSessionController(ports);
+    controller.dispatch({ type: "session_resolved", session: session() });
+    current = "https://demo.test/later";
+    await controller.signIn();
+    expect(ports.signIn).toHaveBeenLastCalledWith({ callbackURL: "https://demo.test/later" });
+    current = "https://demo.test/latest";
+    controller.dispatch({ type: "unauthorized", generation: 0, reason: "refresh_indeterminate" });
+    expect(ports.signIn).toHaveBeenLastCalledWith({ callbackURL: "https://demo.test/latest" });
+    await controller.signIn({ callbackURL: "https://demo.test/explicit" });
+    expect(ports.signIn).toHaveBeenLastCalledWith({ callbackURL: "https://demo.test/explicit" });
+  });
+  it("a sign-in refused by Interlock is a bff dependency failure with its status", async () => {
+    const ports = {
+      ...fakePorts(),
+      signIn: vi.fn<SessionPorts["signIn"]>().mockRejectedValue(new UpstreamError(403, null)),
+    };
+    const controller = createSessionController(ports);
+    await controller.signIn();
+    expect(controller.getState().dependency).toMatchObject({
+      source: "bff",
+      reason: "request_failed",
+      status: 403,
+    });
   });
   it.each([false, true])("signOut orchestrates completion, incomplete=%s", async (incomplete) => {
     const ports = {

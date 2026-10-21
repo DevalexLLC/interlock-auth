@@ -1,5 +1,5 @@
 import { dependencyFailure } from "./dependency-failure.js";
-import { DependencyFailureError } from "./errors.js";
+import { DependencyFailureError, UpstreamError } from "./errors.js";
 import {
   initialSessionState,
   reduceSession,
@@ -16,7 +16,8 @@ export interface SessionPorts {
   signOut(): Promise<SignOutResponse>;
   refetchSession(): Promise<unknown>;
   onSessionEnded?(info: SessionEndedInfo): void;
-  callbackURL?: string;
+  /** A function is read at each sign-in, so an automatic re-login returns to the current route. */
+  callbackURL?: string | (() => string | undefined);
   now?: () => number;
 }
 export function createSessionController(ports: SessionPorts, initial = initialSessionState()) {
@@ -28,7 +29,11 @@ export function createSessionController(ports: SessionPorts, initial = initialSe
   const failureOf = (error: unknown) =>
     error instanceof DependencyFailureError
       ? error.failure
-      : dependencyFailure("network", "unreachable", {}, ports.now);
+      : error instanceof UpstreamError
+        ? dependencyFailure("bff", "request_failed", { status: error.status }, ports.now)
+        : dependencyFailure("network", "unreachable", {}, ports.now);
+  const callbackURL = () =>
+    typeof ports.callbackURL === "function" ? ports.callbackURL() : ports.callbackURL;
   const retry = async () => {
     try {
       await ports.refetchSession();
@@ -38,7 +43,7 @@ export function createSessionController(ports: SessionPorts, initial = initialSe
   };
   const signIn = async (options: SignInOptions = {}) => {
     try {
-      await ports.signIn({ callbackURL: ports.callbackURL, ...options });
+      await ports.signIn({ callbackURL: callbackURL(), ...options });
     } catch (error) {
       dispatch({ type: "login_failed", failure: failureOf(error) });
     }

@@ -7,13 +7,6 @@ import { defineConfig } from "vite";
 export default defineConfig({
   root: fileURLToPath(new URL(".", import.meta.url)),
   plugins: [react()],
-  resolve: {
-    alias: {
-      "@devalexllc/interlock-auth/react": fileURLToPath(
-        new URL("../src/react/index.ts", import.meta.url),
-      ),
-    },
-  },
   server: {
     host: true,
     port: 5173,
