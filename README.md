@@ -16,7 +16,6 @@ without either.
 ## The root entry
 
 ```ts
-import { betterAuth } from "better-auth";
 import {
   assertCallbackPath,
   assertReceiverRoute,
@@ -27,6 +26,7 @@ import {
   KyselyGrantStore,
   receiverRouteOf,
 } from "@devalexllc/interlock-auth";
+import { betterAuth } from "better-auth";
 
 const auth = betterAuth(
   createKeycloakAuthOptions(config, {
