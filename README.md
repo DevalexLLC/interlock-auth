@@ -256,7 +256,7 @@ It always sends `credentials: "include"` to the configured origin. It never adds
 - Every 401 ends the session atomically and throws `SessionEndedError`. A plain 401 shows
   login without navigating. A current-generation `refresh_indeterminate` while signed in
   enters login once for that session ID. `onSessionEnded({ sessionId, reason, generation,
-willReEnterLogin })` runs before subscribers see the new state.
+  willReEnterLogin })` runs before subscribers see the new state.
 - A 401 sent before logout cannot trigger automatic login after logout. Repeated 401s and
   Better Auth's stale copy of the ended session cannot restore it. A different session ID
   can sign in again. Provider-discovered session loss never redirects.
