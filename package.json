@@ -1,6 +1,6 @@
 {
   "name": "@devalexllc/interlock-auth",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Better Auth wiring and claim normalization for Interlock, with Next.js and React session clients.",
   "keywords": [
     "better-auth",
