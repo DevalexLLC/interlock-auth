@@ -10,11 +10,27 @@ describe("entry points", () => {
     expect(mod.normalizeClaims).toBeInstanceOf(Function);
   });
 
-  it.each([
-    ["./next", async () => import("../next/index.js")],
-    ["./react", async () => import("../react/index.js")],
-  ])("%s is empty", async (_entry, load) => {
-    const mod: object = await load();
-    expect(Object.keys(mod)).toEqual([]);
-  });
+  it.each([["./next", async () => import("../next/index.js")]])(
+    "%s is empty",
+    async (_entry, load) => {
+      const mod: object = await load();
+      expect(Object.keys(mod)).toEqual([]);
+    },
+  );
+});
+
+it("./react exports the provider, hooks, and framework-free factories", async () => {
+  const mod = await import("../react/index.js");
+  for (const name of [
+    "InterlockProvider",
+    "useInterlockSession",
+    "useInterlockFetch",
+    "useCatalogClient",
+    "useNotificationSocket",
+    "useSocketEvent",
+    "createSessionController",
+    "createSocketConnector",
+    "classifyResponse",
+  ] as const)
+    expect(mod[name]).toBeInstanceOf(Function);
 });

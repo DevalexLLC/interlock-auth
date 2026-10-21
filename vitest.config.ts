@@ -4,6 +4,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     projects: [
+      { test: { name: "client", environment: "node", include: ["src/client/**/*.test.ts"] } },
       {
         test: {
           // The root entry's core runs on the server: Node's environment, and a timeout that

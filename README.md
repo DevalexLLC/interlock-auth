@@ -8,7 +8,7 @@ Next.js and React applications use. One package, one session model, released on 
 | ----------- | ---------------------------------------------------------------------------------------------- | ----------------- |
 | `.`         | Better Auth options for the Keycloak provider, session-scoped grants, and claim normalization  | Since 0.1.0 (3.5) |
 | `./next`    | The Next.js session behavior: session reads, the session route handler, provider and monitor   | Empty until 8.1   |
-| `./react`   | A session provider over `better-auth/react` and a fetch wrapper that applies the auth contract | Empty until 3.6   |
+| `./react`   | A session provider over `better-auth/react` and a fetch wrapper that applies the auth contract | Implemented (3.6) |
 
 The root entry stays free of React and Next.js, so a server or a test process can import it
 without either.
@@ -197,3 +197,119 @@ npm-side organization name matching GitHub's canonical casing exactly.
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE). Copyright 2026 Devalex LLC.
+
+## The `./react` entry
+
+Install React 18.3 or 19 alongside the package. React is an optional peer so hosts using
+only the server entry do not install it. The browser entry imports no server authentication
+code and can also be imported in plain Node.
+
+```tsx
+import {
+  InterlockProvider,
+  useInterlockSession,
+  useInterlockFetch,
+  useCatalogClient,
+  useNotificationSocket,
+  useSocketEvent,
+} from "@devalexllc/interlock-auth/react";
+
+function Session() {
+  const { phase, user, signIn, signOut, retry } = useInterlockSession();
+  if (phase.kind === "loading") return <p>Loading…</p>;
+  if (phase.kind === "unavailable") return <button onClick={retry}>Retry</button>;
+  if (phase.kind !== "signed_in") return <button onClick={() => signIn()}>Sign in</button>;
+  return <button onClick={signOut}>Sign out {user?.name}</button>;
+}
+
+// Clear application data synchronously here, before subscribers render signed out.
+<InterlockProvider uri="https://interlock.example.com" onSessionEnded={() => clearUserCache()}>
+  <Session />
+</InterlockProvider>;
+```
+
+Provider configuration is fixed at mount; remount to change it. An absolute `uri` selects
+that origin; omitted, empty, and relative values select the page origin. The auth and socket
+paths are always `/api/auth` and `/ws/irongate`.
+
+| Prop                                       | Default                          | Purpose                                                                         |
+| ------------------------------------------ | -------------------------------- | ------------------------------------------------------------------------------- |
+| `uri`                                      | Page origin                      | Interlock origin                                                                |
+| `callbackURL`                              | Page URL at sign-in time         | Return URL for explicit and automatic login; a function is read at each sign-in |
+| `onSessionEnded`                           | None                             | Synchronously clear user caches before publishing an ended state                |
+| `refetchIntervalSeconds`                   | `60`                             | Better Auth session polling; `0` disables polling                               |
+| `unavailableRetryMs`                       | `5000`                           | Retry first-load session failures; `0` disables the timer                       |
+| `socket.enabled`                           | `true`                           | Connect notifications while signed in                                           |
+| `socket.backoff`                           | `{ baseMs: 1000, capMs: 30000 }` | Full-jitter reconnect delay                                                     |
+| `fetch`, `WebSocket`, `navigate`, `timers` | Browser implementations          | Injectable ports for hosts and tests                                            |
+
+`useInterlockSession()` returns `{ phase, generation, reLoginUsedFor, dependency, user,
+isSignedIn, signIn, signOut, retry }`. `phase.kind` is `loading`, `unavailable`, `signed_in`,
+`signing_out`, `re_entering_login`, or `signed_out`. Better Auth reads the session on mount,
+on refetch, when the page becomes visible, and periodically. A get-session failure preserves
+an existing session; a failure before any session is known shows `unavailable`.
+
+`useInterlockFetch()` returns `(path, { json?, query?, ...RequestInit }) => Promise<Response>`.
+It always sends `credentials: "include"` to the configured origin. It never adds
+`x-application-id`; Interlock derives application identity from the browser's Origin.
+
+- Every 401 ends the session atomically and throws `SessionEndedError`. A plain 401 shows
+  login without navigating. A current-generation `refresh_indeterminate` while signed in
+  enters login once for that session ID. `onSessionEnded({ sessionId, reason, generation,
+  willReEnterLogin })` runs before subscribers see the new state.
+- A 401 sent before logout cannot trigger automatic login after logout. Repeated 401s and
+  Better Auth's stale copy of the ended session cannot restore it. A different session ID
+  can sign in again. Provider-discovered session loss never redirects.
+- A contract 503 `dependency_failure`, one of the three contract 502 codes, or a network
+  failure throws `DependencyFailureError` and sets `dependency` without ending the session.
+  The next successful BFF read clears that failure. Ordinary upstream errors pass through
+  as Responses; caller cancellation is rethrown without declaring a dependency failure.
+- `signOut()` is global and never retries automatically. Its 200 or 503
+  `sign_out_incomplete` response leaves `signed_out` with `keycloakLogout` and
+  `signOutIncomplete`. Display `unconfirmed` as **“Signed out of this application, SSO may
+  still be active.”** A network failure retains the last session and refetches it.
+
+`useNotificationSocket()` returns `{ phase, attempt, failure, send, subscribe, reconnectNow }`.
+`subscribe` receives `{ event, data }`; `useSocketEvent<T>(event, handler)` subscribes to one
+named event. `send({ event, data })` returns false unless open. There are no client pings.
+The connector closes with 1000 as soon as the session leaves `signed_in`.
+
+An established socket's 4401 uses the same session-ended transition. A 4503 preserves the
+session, reports `database` or `upstream_unavailable`, and retries with backoff. Failed opens
+and abnormal 1006 closes revalidate through **GET `/api/irongate/notifications/count`** using
+the same fetch wrapper. Get-session does not run the grant refresher, so it cannot classify
+these failures. Ordinary disconnects, including shutdown and backpressure, reconnect.
+
+`useCatalogClient()` provides `listApplications()`, `groupsGranting(appId)`, `myGroups()`,
+`listMyRequests(username)`, `createMemberRequest({ group, user, clientId })`,
+`cancelRequest(id)`, `listNotifications(clientId)`, and `notificationCount()`. Every route
+uses `/api/irongate`. A duplicate request returns `{ kind: "already_requested" }`; a created
+request returns `{ kind: "created", request }`, with `request.id` normalized from `_id ?? id`.
+Other non-contract upstream failures throw `UpstreamError` carrying the status and body.
+
+The entry also exports the framework-free factories, reducers, error classes, and types:
+`resolveEndpoints`, `classifyResponse`, `reduceSession`, `createSessionController`,
+`createInterlockFetch`, `reduceSocket`, `createSocketConnector`, `createCatalogClient`, and
+`backoffDelay`. These can be reused by another framework adapter without importing the
+server entry.
+
+### Compose demo
+
+The unpublished `demo/` exercises username, catalog/groups, request/cancel, socket messages,
+and the dependency and logout states. From this package checkout:
+
+```sh
+npm run demo
+```
+
+Open `https://demo.dev.home.arpa:5173`. The default Interlock origin is
+`https://interlock.dev.home.arpa`; override it with `VITE_INTERLOCK_URI`. TLS defaults to
+`../infralytics-stack/certs/dev.home.arpa.crt` and `.key`; override with `DEMO_TLS_CERT` and
+`DEMO_TLS_KEY` when using a worktree elsewhere. No private key is copied into this package.
+
+The Compose Interlock service must trust `https://demo.dev.home.arpa:5173`; this is
+Compose-only development tooling, not a cluster-template setting. The browser needs the
+local CA trust, hostname mapping, and Ann's client certificate. The host must run Better
+Auth's migrator for `user.username` before serving this package version, and an existing user
+must sign in again to populate it. Demo results are local Compose evidence only, never
+cluster or enclave evidence.

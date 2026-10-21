@@ -58,7 +58,7 @@ jobs:
           cd "$consumer"
           npm init -y >/dev/null
           npm pkg set type=module
-          npm install --silent ./*.tgz
+          npm install --silent ./*.tgz react
           for sub in "" "/next" "/react"; do
             echo "import @devalexllc/interlock-auth$sub"
             node --input-type=module -e "await import('@devalexllc/interlock-auth$sub')"
