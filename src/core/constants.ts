@@ -5,9 +5,10 @@ export const AUTH_BASE_PATH = "/api/auth";
 export const KEYCLOAK_PROVIDER_ID = "keycloak";
 
 /**
- * The callback path the realm contract registers as the client's only redirect URI (the
- * `interlock` README, "Client"). `assertCallbackPath` checks at startup that Better Auth really
- * serves this path, because it has moved between releases.
+ * The callback path the realm contract registers as the client's redirect URI, on the
+ * application's own origin and on the developer origin `https://localhost:8443` (the `interlock`
+ * README, "Client"). `assertCallbackPath` checks at startup that Better Auth really serves this
+ * path, because it has moved between releases.
  */
 export const KEYCLOAK_CALLBACK_PATH = `${AUTH_BASE_PATH}/callback/${KEYCLOAK_PROVIDER_ID}`;
 
