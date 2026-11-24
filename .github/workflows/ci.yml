@@ -53,13 +53,16 @@ jobs:
       - name: Verify package contents
         run: |
           tsgo="$PWD/node_modules/.bin/tsgo"
+          # Better Auth and Kysely are optional peers, so the root entry's consumer installs them
+          # itself, at the versions the package declares, as a host does.
+          peers="$(node -p 'const p = require("./package.json").peerDependencies; ["better-auth", "kysely"].map((n) => `${n}@${p[n]}`).join(" ")')"
           consumer="$(mktemp -d)"
           npm pack --pack-destination "$consumer"
           cd "$consumer"
           npm init -y >/dev/null
           npm pkg set type=module
-          npm install --silent ./*.tgz react
-          for sub in "" "/next" "/react"; do
+          npm install --silent ./*.tgz react $peers
+          for sub in "" "/claims" "/next" "/react"; do
             echo "import @devalexllc/interlock-auth$sub"
             node --input-type=module -e "await import('@devalexllc/interlock-auth$sub')"
           done
@@ -101,6 +104,38 @@ jobs:
           EOF
           echo "type-check consumer.ts (NodeNext)"
           "$tsgo" --noEmit --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck consumer.ts
+
+          # `./claims` is for backends that verify Keycloak tokens and have no Better Auth: its peers
+          # are optional, so a plain install must not pull them in, and the entry must load and
+          # type-check without them.
+          backend="$(mktemp -d)"
+          cp ./*.tgz "$backend"
+          cd "$backend"
+          npm init -y >/dev/null
+          npm pkg set type=module
+          npm install --silent ./*.tgz
+          for peer in better-auth kysely react; do
+            if [ -e "node_modules/$peer" ]; then
+              echo "::error::installing the package pulled in its optional peer $peer"
+              exit 1
+            fi
+          done
+          echo "import @devalexllc/interlock-auth/claims without the optional peers"
+          node --input-type=module -e "await import('@devalexllc/interlock-auth/claims')"
+          cat > backend.ts <<'EOF'
+          import {
+            MalformedClaimError,
+            normalizeClaims,
+            type NormalizedClaims,
+          } from "@devalexllc/interlock-auth/claims";
+
+          const claims: NormalizedClaims = normalizeClaims({ sites: ["site-a"] });
+          const refused: boolean = new MalformedClaimError("sites") instanceof Error;
+
+          export { claims, refused };
+          EOF
+          echo "type-check backend.ts (NodeNext, no optional peers)"
+          "$tsgo" --noEmit --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck backend.ts
 
   # A separate job, not a step in the matrix: the analysis is a property of the
   # code, not of the Node version it ran under, and pushing the same project key

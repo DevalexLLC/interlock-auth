@@ -1,8 +1,10 @@
 // Root entry: the framework-agnostic core. Better Auth options for the Keycloak provider with
 // session-scoped grants, the grant store and its refresher, the exposure allow-list, the
-// back-channel receiver and RP-initiated logout, and claim normalization. Free of React and
-// Next.js, so a server or a test process can import it without either.
+// back-channel receiver and RP-initiated logout, and claim normalization, re-exported from the
+// `./claims` entry. Free of React and Next.js, so a server or a test process can import it without
+// either.
 
+export { MalformedClaimError, normalizeClaims, type NormalizedClaims } from "./claims/index.js";
 export {
   cookieSettings,
   createKeycloakAuthOptions,
@@ -19,7 +21,6 @@ export {
   type CallbackPathOptions,
   type CallbackPathSource,
 } from "./core/callback-path.js";
-export { normalizeClaims, type NormalizedClaims } from "./core/claims.js";
 export {
   COOKIE_NAME_POLICIES,
   drainBound,
