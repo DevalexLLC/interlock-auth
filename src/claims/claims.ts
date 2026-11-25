@@ -33,10 +33,14 @@ export interface NormalizedClaims {
  */
 export class MalformedClaimError extends Error {
   constructor(
-    /** The claim's name, such as `sites`. Never its value. */
+    /** The claim's name, such as `sites`, or `payload` for the whole argument. Never its value. */
     readonly claim: string,
   ) {
-    super(`The token's ${claim} claim is malformed`);
+    super(
+      claim === "payload"
+        ? "The token payload is not an object"
+        : `The token's ${claim} claim is malformed`,
+    );
     // An own property, as the client's errors set it, so a copy of the error's own fields (a log
     // serializer, `Object.entries`) keeps it. V8 writes the stack header lazily, so it reads
     // `MalformedClaimError:` too.
@@ -57,7 +61,8 @@ export interface MalformedClaim {
  * `MalformedClaim`, not to the class, because the object it recognizes need not have the class's
  * other members. An error that crossed a structured clone (a worker's `postMessage`) is not
  * recognized: the clone resets its name to `Error` and drops `claim`, so classify it before it
- * crosses.
+ * crosses. Use it on what a `try` around `normalizeClaims()` caught, not on arbitrary objects: an
+ * upstream error body of the same shape would match.
  */
 export const isMalformedClaimError = (error: unknown): error is MalformedClaim => {
   if (typeof error !== "object" || error === null) return false;
@@ -97,12 +102,16 @@ const clientRoles = (resourceAccess: unknown): string[] =>
  * claim that is not what the realm issues must not read as absent. The mapper omits the claim
  * for a user with no value and never emits `[]`, so a present claim is a non-empty array of
  * non-empty strings or it is refused. A value is an exact `Site.name`, so one with leading or
- * trailing whitespace, which can match no site, is refused too, rather than leaving the user an
+ * trailing whitespace, or with a control or invisible format character, which can match no site,
+ * is refused too, rather than leaving the user an
  * empty result with nothing to diagnose. Repeats are dropped, as they are for every list. A key
  * holding `undefined` counts as absent: a JSON token cannot carry `undefined`, and a payload class
  * with a declared `sites` field holds it for every user without the attribute. Such a class must
  * leave the field undefined: a default of `[]` or `null` is refused, like any other malformed claim.
  */
+/** Control and format characters (a zero-width space, a byte-order mark), which no site name holds. */
+const INVISIBLE = /[\p{Cc}\p{Cf}]/u;
+
 const sitesOf = (claims: Record<string, unknown>): string[] => {
   const value = claims.sites;
   if (value === undefined) return [];
@@ -111,7 +120,8 @@ const sitesOf = (claims: Record<string, unknown>): string[] => {
     value.length === 0 ||
     // `Array.from`, not `value.every`: `every` skips the holes of a sparse list built in code.
     !Array.from(value as unknown[]).every(
-      (site) => typeof site === "string" && site !== "" && site === site.trim(),
+      (site) =>
+        typeof site === "string" && site !== "" && site === site.trim() && !INVISIBLE.test(site),
     )
   )
     throw new MalformedClaimError("sites");
@@ -125,13 +135,17 @@ const sitesOf = (claims: Record<string, unknown>): string[] => {
  * stays. For every claim but `sites`, a claim of the wrong shape, or an entry that is not a
  * non-empty string, is dropped rather than thrown on, which grants nothing. `sites` is checked
  * instead, because dropping it would widen access: a malformed one throws
- * `MalformedClaimError`, as does an argument that is not an object, or is a list. Pure.
+ * `MalformedClaimError`, as does an argument that is not an object, is a list, or is a promise.
+ * Pure.
  */
 export function normalizeClaims(claims: Record<string, unknown>): NormalizedClaims {
   // A loosely typed caller can pass what is not a payload at all (a failed decode's `undefined`).
   // Refused like a malformed claim, so it is a 403 and not a `TypeError` that becomes a 500. Any
   // object other than a list is read, a class instance or a wrapped payload included, as before.
-  if (!isRecord(claims)) throw new MalformedClaimError("payload");
+  // A thenable is refused too: it is what a forgotten `await` on an async verify passes, and read as
+  // a payload it would yield a caller with no claims rather than an error.
+  if (!isRecord(claims) || typeof claims.then === "function")
+    throw new MalformedClaimError("payload");
   return {
     roles: [...new Set([...rolesOf(claims.realm_access), ...clientRoles(claims.resource_access)])],
     groups: strings(claims.groups),

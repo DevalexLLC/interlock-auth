@@ -94,10 +94,11 @@ const claims = normalizeClaims(verifiedPayload);
 
 `normalizeClaims` maps a verified Keycloak token's claims onto the shape the APIs authorize on. It
 verifies nothing itself; the caller passes the payload of a token it has already verified. An
-argument that is not an object, or is a list, throws `MalformedClaimError` with `claim` `"payload"`.
-A payload class that declares `sites` must leave it undefined for a user without the attribute; a
-default of `[]` is refused like any malformed claim. Like every entry, `./claims` resolves through
-`exports` only, so a TypeScript host needs `moduleResolution` `NodeNext` or `Bundler`.
+argument that is not an object, is a list, or is a promise (a forgotten `await`) throws
+`MalformedClaimError` with `claim` `"payload"`. A payload class that declares `sites` must leave it
+undefined for a user without the attribute; a default of `[]` is refused like any malformed claim.
+Like every entry, `./claims` resolves through `exports` only, so a TypeScript host needs
+`moduleResolution` `NodeNext` or `Bundler`.
 
 | Claim                       | Becomes               | A claim of the wrong shape         |
 | --------------------------- | --------------------- | ---------------------------------- |
@@ -114,10 +115,11 @@ at its last `:` and no realm role can pass for a client role; a client ID may ho
 comes back without repeats, in first-seen order. `sites` is reductive: an absent claim means every
 site in the user's tenants, and the result is `[]`. Dropping a malformed one would read the same way
 and widen access, so a present claim that is not a non-empty array of non-empty strings (`[]`
-included), or that holds a value with leading or trailing whitespace, throws `MalformedClaimError`,
-whose `claim` names the claim and never its value. A refresh cannot repair it, so a caller answers
-403, not 401. Recognize it with `isMalformedClaimError(error)` rather than `instanceof`, which fails
-when two copies of the package are installed.
+included), or that holds a value with leading or trailing whitespace or an invisible or control
+character, throws `MalformedClaimError`, whose `claim` names the claim and never its value. A
+refresh cannot repair it, so a caller answers 403, not 401. Recognize it with
+`isMalformedClaimError(error)` rather than `instanceof`, which fails when two copies of the package
+are installed.
 
 The entry imports nothing from Better Auth, Kysely, React, or Next.js. Those peers are optional
 from `0.3.0`, so a backend that installs the package for `./claims` gets none of them. The root

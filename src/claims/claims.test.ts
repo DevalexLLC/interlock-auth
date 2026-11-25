@@ -36,6 +36,13 @@ describe("normalizeClaims", () => {
     });
   });
 
+  it("should say the payload, not a claim, is wrong", () => {
+    expect(() => normalizeClaims(undefined as unknown as Record<string, unknown>)).toThrow(
+      "The token payload is not an object",
+    );
+    expect(() => normalizeClaims({ sites: [] })).toThrow("The token's sites claim is malformed");
+  });
+
   // A backend may hand over a class instance (`Object.assign(new JwtUser(), payload)`).
   it("should read a payload that is a class instance", () => {
     class JwtUser {
@@ -67,6 +74,7 @@ describe("normalizeClaims", () => {
     ["null", null],
     ["a string", "token"],
     ["a list", []],
+    ["a promise (a forgotten await)", Promise.resolve({ sites: ["site-a"] })],
   ])("should refuse a payload that is %s", (_case, payload) => {
     expect(() => normalizeClaims(payload as unknown as Record<string, unknown>)).toThrow(
       expect.objectContaining({ name: "MalformedClaimError", claim: "payload" }),
@@ -199,6 +207,9 @@ describe("normalizeClaims", () => {
       ["a value with leading whitespace", [" site-a"]],
       ["a value with trailing whitespace", ["site-a "]],
       ["a value of whitespace only", ["  "]],
+      ["a value with a zero-width space", ["site-a\u200B"]],
+      ["a value with a byte-order mark", ["\uFEFFsite-a"]],
+      ["a value with a control character", ["site-a\u0000"]],
     ])("should refuse %s", (_case, sites) => {
       expect(() => normalizeClaims({ sites })).toThrow(MalformedClaimError);
     });
