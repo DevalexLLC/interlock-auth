@@ -57,10 +57,13 @@ export interface MalformedClaim {
 }
 
 /**
- * Whether `error` is a `MalformedClaimError`, from this copy of the package or another, or from
- * another realm. Checked by shape rather than by prototype, as `isPlainObject` is: `instanceof`
- * compares against one copy's class and one realm's `Error`. It narrows to `MalformedClaim`, not
- * to the class, because the object it recognizes need not have the class's other members.
+ * Whether `error` is a `MalformedClaimError`, from this copy of the package or another, from
+ * another `vm` realm, or as a copy of its own fields. Checked by shape rather than by prototype,
+ * as `isPlainObject` is: `instanceof` compares against one copy's class and one realm's `Error`.
+ * It narrows to `MalformedClaim`, not to the class, because the object it recognizes need not
+ * have the class's other members. An error that crossed a structured clone (a worker's
+ * `postMessage`) is not recognized: the clone resets its name to `Error` and drops `claim`, so
+ * classify it before it crosses.
  */
 export const isMalformedClaimError = (error: unknown): error is MalformedClaim => {
   if (typeof error !== "object" || error === null) return false;
@@ -125,12 +128,14 @@ const sitesOf = (claims: Record<string, unknown>): string[] => {
  * stays. For every claim but `sites`, a claim of the wrong shape, or an entry that is not a
  * non-empty string, is dropped rather than thrown on, which grants nothing. `sites` is checked
  * instead, because dropping it would widen access: a malformed one throws
- * `MalformedClaimError`, as does an argument that is not an object. Pure.
+ * `MalformedClaimError`, as does an argument that is not an object, or is a list. Pure.
  */
 export function normalizeClaims(claims: Record<string, unknown>): NormalizedClaims {
   // A loosely typed caller can pass what is not a payload at all (a failed decode's `undefined`).
-  // Refused like a malformed claim, so it is a 403 and not a `TypeError` that becomes a 500.
-  if (!isPlainObject(claims)) throw new MalformedClaimError("payload");
+  // Refused like a malformed claim, so it is a 403 and not a `TypeError` that becomes a 500. Any
+  // object other than a list is read, a class instance or a wrapped payload included, as before.
+  if (typeof claims !== "object" || claims === null || Array.isArray(claims))
+    throw new MalformedClaimError("payload");
   return {
     roles: [...new Set([...rolesOf(claims.realm_access), ...clientRoles(claims.resource_access)])],
     groups: strings(claims.groups),

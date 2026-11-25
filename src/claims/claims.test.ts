@@ -36,6 +36,19 @@ describe("normalizeClaims", () => {
     });
   });
 
+  // A backend may hand over a class instance (`Object.assign(new JwtUser(), payload)`).
+  it("should read a payload that is a class instance", () => {
+    class JwtUser {
+      groups = ["NY"];
+      sites = ["site-a"];
+    }
+
+    expect(normalizeClaims(new JwtUser() as unknown as Record<string, unknown>)).toMatchObject({
+      groups: ["NY"],
+      sites: ["site-a"],
+    });
+  });
+
   it.each([
     ["undefined", undefined],
     ["null", null],

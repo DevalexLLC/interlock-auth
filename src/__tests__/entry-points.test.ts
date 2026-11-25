@@ -63,7 +63,7 @@ const specifiersOf = (file: string): (string | null)[] => {
   walk(parseAst(text, { lang: file.endsWith(".tsx") ? "tsx" : "ts" }));
   // Triple-slash directives are comments to the parser, so they are read from the text.
   for (const [, specifier] of text.matchAll(
-    /^\/\/\/\s*<reference\s+(?:types|path)\s*=\s*["']([^"']+)["']/gm,
+    /^\s*\/\/\/\s*<reference\s+(?:types|path)\s*=\s*["']([^"']+)["']/gm,
   ))
     if (specifier !== undefined) found.push(specifier);
   return found;
