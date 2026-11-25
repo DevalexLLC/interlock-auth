@@ -11,7 +11,7 @@ export default defineConfig({
           // covers the refresher's lease waits and the transport's local TLS servers.
           name: "core",
           environment: "node",
-          include: ["src/core/**/*.test.ts"],
+          include: ["src/core/**/*.test.ts", "src/claims/**/*.test.ts"],
           testTimeout: 30_000,
         },
       },
@@ -45,6 +45,7 @@ export default defineConfig({
         "src/**/*.test.tsx",
         "src/**/__tests__/**",
         "src/index.ts",
+        "src/claims/index.ts",
         "src/next/index.ts",
         "src/react/index.ts",
       ],

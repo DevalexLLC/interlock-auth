@@ -53,13 +53,19 @@ jobs:
       - name: Verify package contents
         run: |
           tsgo="$PWD/node_modules/.bin/tsgo"
+          # Every peer is optional, so each consumer installs the ones its entries need itself, at
+          # the versions the package declares, as a host does.
+          peer() { node -p "require('./package.json').peerDependencies['$1']"; }
+          better_auth="better-auth@$(peer better-auth)"
+          kysely="kysely@$(peer kysely)"
+          react="react@$(peer react)"
           consumer="$(mktemp -d)"
           npm pack --pack-destination "$consumer"
           cd "$consumer"
           npm init -y >/dev/null
           npm pkg set type=module
-          npm install --silent ./*.tgz react
-          for sub in "" "/next" "/react"; do
+          npm install --silent ./*.tgz "$react" "$better_auth" "$kysely"
+          for sub in "" "/claims" "/next" "/react"; do
             echo "import @devalexllc/interlock-auth$sub"
             node --input-type=module -e "await import('@devalexllc/interlock-auth$sub')"
           done
@@ -101,6 +107,53 @@ jobs:
           EOF
           echo "type-check consumer.ts (NodeNext)"
           "$tsgo" --noEmit --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck consumer.ts
+
+          # `./claims` is for backends that verify Keycloak tokens and have no Better Auth: its peers
+          # are optional, so a plain install must not pull them in, and the entry must load and
+          # type-check without them.
+          backend="$(mktemp -d)"
+          cp ./*.tgz "$backend"
+          cd "$backend"
+          npm init -y >/dev/null
+          npm pkg set type=module
+          npm install --silent ./*.tgz
+          for peer in better-auth kysely react; do
+            if [ -e "node_modules/$peer" ]; then
+              echo "::error::installing the package pulled in its optional peer $peer"
+              exit 1
+            fi
+          done
+          echo "import @devalexllc/interlock-auth/claims without the optional peers"
+          node --input-type=module -e "await import('@devalexllc/interlock-auth/claims')"
+          cat > backend.ts <<'EOF'
+          import {
+            isMalformedClaimError,
+            MalformedClaimError,
+            normalizeClaims,
+            type NormalizedClaims,
+          } from "@devalexllc/interlock-auth/claims";
+
+          const claims: NormalizedClaims = normalizeClaims({ sites: ["site-a"] });
+          const refused: boolean = isMalformedClaimError(new MalformedClaimError("sites"));
+
+          export { claims, refused };
+          EOF
+          echo "type-check backend.ts (NodeNext, no optional peers)"
+          # No `--skipLibCheck`: the package's own declarations are checked too, so a type-only
+          # import of a peer in anything `./claims` reaches fails here.
+          "$tsgo" --noEmit --module NodeNext --moduleResolution NodeNext --strict backend.ts
+
+          # `./react` loads `better-auth/react` and React, and a frontend host declares those two.
+          # Better Auth depends on Kysely itself, so this does not show that `./react` avoids
+          # Kysely, only that a host declaring React and Better Auth can load it.
+          frontend="$(mktemp -d)"
+          cp ./*.tgz "$frontend"
+          cd "$frontend"
+          npm init -y >/dev/null
+          npm pkg set type=module
+          npm install --silent ./*.tgz "$react" "$better_auth"
+          echo "import @devalexllc/interlock-auth/react with React and Better Auth only"
+          node --input-type=module -e "await import('@devalexllc/interlock-auth/react')"
 
   # A separate job, not a step in the matrix: the analysis is a property of the
   # code, not of the Node version it ran under, and pushing the same project key

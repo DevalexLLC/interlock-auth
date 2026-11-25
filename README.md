@@ -7,6 +7,7 @@ Next.js and React applications use. One package, one session model, released on 
 | Entry point | Contents                                                                                       | Status            |
 | ----------- | ---------------------------------------------------------------------------------------------- | ----------------- |
 | `.`         | Better Auth options for the Keycloak provider, session-scoped grants, and claim normalization  | Since 0.1.0 (3.5) |
+| `./claims`  | Claim normalization alone, for backends that verify Keycloak tokens without Better Auth        | Since 0.3.0 (6.2) |
 | `./next`    | The Next.js session behavior: session reads, the session route handler, provider and monitor   | Empty until 8.1   |
 | `./react`   | A session provider over `better-auth/react` and a fetch wrapper that applies the auth contract | Implemented (3.6) |
 
@@ -79,9 +80,53 @@ entry exports:
   (`0001_session_grant`, for Kysely's `Migrator`, after Better Auth's tables exist);
   `ensureAccountTokensInvariant` scrubs and guards `account` against tokens and belongs in
   every migration run; `accountTokensProblems` verifies it.
-- **Claims.** `normalizeClaims` maps Keycloak's claims to
-  `{ roles, groups, tenants, sites, internal_groups }`. It is a stub until item 6.2 ships the
-  mapping the APIs apply; `sites` stays empty until the realm has a source for it.
+- **Claims.** `normalizeClaims`, `NormalizedClaims`, `MalformedClaimError`, and
+  `isMalformedClaimError`, re-exported from the `./claims` entry (below).
+
+## The `./claims` entry
+
+```ts
+import { isMalformedClaimError, normalizeClaims } from "@devalexllc/interlock-auth/claims";
+
+const claims = normalizeClaims(verifiedPayload);
+// { roles, groups, tenants, sites, internal_groups }
+```
+
+`normalizeClaims` maps a verified Keycloak token's claims onto the shape the APIs authorize on. It
+verifies nothing itself; the caller passes the payload of a token it has already verified. An
+argument that is not an object, is a list, is a promise (a forgotten `await`), or is jose's whole
+`jwtVerify` result rather than its `.payload` throws `MalformedClaimError` with `claim` `"payload"`.
+A payload class that declares `sites` must leave it undefined for a user without the attribute; a
+default of `[]` is refused like any malformed claim. Like every entry, `./claims` resolves through
+`exports` only, so a TypeScript host needs `moduleResolution` `NodeNext` or `Bundler`.
+
+| Claim                       | Becomes               | A claim of the wrong shape         |
+| --------------------------- | --------------------- | ---------------------------------- |
+| `realm_access.roles`        | `roles`, bare         | Dropped, as are non-string entries |
+| `resource_access.<c>.roles` | `roles`, `<c>:<role>` | Dropped, as are non-string entries |
+| `groups`                    | `groups`              | Dropped, as are non-string entries |
+| `tenant_ids`                | `tenants`             | Dropped, as are non-string entries |
+| `sites`                     | `sites`               | Throws `MalformedClaimError`       |
+| `internal_groups`           | `internal_groups`     | Dropped, as are non-string entries |
+
+Client roles carry their client's name, so `irongate-api:admin` never reads as a realm role named
+`admin`. A realm or client role whose own name holds `:` is dropped, so every entry splits one way
+at its last `:` and no realm role can pass for a client role; a client ID may hold `:`. Every list
+comes back without repeats, in first-seen order. `sites` is reductive: an absent claim means every
+site in the user's tenants, and the result is `[]`, so `[]` means unrestricted, never no site.
+Dropping a malformed one would read the same way and widen access, so a present claim that is not a
+non-empty array of non-empty strings (`[]` included), or that holds a value with leading or trailing
+whitespace, or any character of Unicode's "Other" category or a line or paragraph separator (a
+control or format character such as a byte-order mark, a zero-width space, or a bidirectional mark;
+a surrogate; a private-use or unassigned code point), except the zero-width joiner, non-joiner, and
+soft hyphen, which belong to names in some scripts, or that is not in Unicode NFC form, throws
+`MalformedClaimError`, whose `claim` names the claim and never its value. A refresh cannot repair
+it, so a caller answers 403, not 401. Recognize it with `isMalformedClaimError(error)` rather than
+`instanceof`, which fails when two copies of the package are installed.
+
+The entry imports nothing from Better Auth, Kysely, React, or Next.js. Those peers are optional
+from `0.3.0`, so a backend that installs the package for `./claims` gets none of them. The root
+entry needs Better Auth and Kysely, and `./react` needs Better Auth, so their hosts install them.
 
 ### Logging
 
@@ -102,7 +147,11 @@ that same version. The hooks throw Better Auth's `APIError` and read its context
 second copy installed, the router would not recognize the package's errors as its own. npm
 refuses a conflicting peer at install time, but that does not prove a single copy, so check
 `npm ls better-auth` after an install. `kysely` (`^0.29.0`) is a peer for the same reason;
-`jose` is the package's own dependency.
+`jose` is the package's own dependency. Both peers are optional from `0.3.0`, so that a backend
+can install the package for `./claims` alone: a host of the root entry declares both itself, and a
+host of `./react`, which loads `better-auth/react`, declares `better-auth`. Better Auth depends on
+Kysely itself, so a host with Better Auth always gets a copy; declaring `kysely` is what makes it
+the version this package supports.
 
 **Better Auth bumps go to the package first, then to its consumers.** Bump the peer and the
 development dependency here, run the suite (the route-table pin in `exposure.test.ts` fails
