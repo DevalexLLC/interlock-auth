@@ -37,7 +37,7 @@ describe("normalizeClaims", () => {
   });
 
   it("should say the payload, not a claim, is wrong", () => {
-    expect(() => normalizeClaims(undefined as unknown as Record<string, unknown>)).toThrow(
+    expect(() => normalizeClaims(undefined as unknown as object)).toThrow(
       "The token payload is not an object",
     );
     expect(() => normalizeClaims({ sites: [] })).toThrow("The token's sites claim is malformed");
@@ -50,7 +50,7 @@ describe("normalizeClaims", () => {
       sites = ["site-a"];
     }
 
-    expect(normalizeClaims(new JwtUser() as unknown as Record<string, unknown>)).toMatchObject({
+    expect(normalizeClaims(new JwtUser())).toMatchObject({
       groups: ["NY"],
       sites: ["site-a"],
     });
@@ -75,8 +75,12 @@ describe("normalizeClaims", () => {
     ["a string", "token"],
     ["a list", []],
     ["a promise (a forgotten await)", Promise.resolve({ sites: ["site-a"] })],
+    [
+      "a whole jwtVerify result",
+      { payload: { sites: ["site-a"] }, protectedHeader: { alg: "RS256" } },
+    ],
   ])("should refuse a payload that is %s", (_case, payload) => {
-    expect(() => normalizeClaims(payload as unknown as Record<string, unknown>)).toThrow(
+    expect(() => normalizeClaims(payload as unknown as object)).toThrow(
       expect.objectContaining({ name: "MalformedClaimError", claim: "payload" }),
     );
   });
@@ -187,6 +191,9 @@ describe("normalizeClaims", () => {
     it.each([
       ["one value", ["site-a"]],
       ["two values", ["site-a", "site-b"]],
+      // Joiners belong to names in some scripts (Persian, Indic) and are not refused.
+      ["a value with a zero-width non-joiner", ["\u0645\u06CC\u200C\u0631\u0648\u062F"]],
+      ["a value with a zero-width joiner", ["site\u200Da"]],
     ])("should keep %s", (_case, sites) => {
       expect(normalizeClaims({ sites }).sites).toEqual(sites);
     });
@@ -210,6 +217,7 @@ describe("normalizeClaims", () => {
       ["a value with a zero-width space", ["site-a\u200B"]],
       ["a value with a byte-order mark", ["\uFEFFsite-a"]],
       ["a value with a control character", ["site-a\u0000"]],
+      ["a value with a bidirectional control", ["site-a\u202E"]],
     ])("should refuse %s", (_case, sites) => {
       expect(() => normalizeClaims({ sites })).toThrow(MalformedClaimError);
     });

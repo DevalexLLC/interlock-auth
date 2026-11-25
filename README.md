@@ -94,11 +94,11 @@ const claims = normalizeClaims(verifiedPayload);
 
 `normalizeClaims` maps a verified Keycloak token's claims onto the shape the APIs authorize on. It
 verifies nothing itself; the caller passes the payload of a token it has already verified. An
-argument that is not an object, is a list, or is a promise (a forgotten `await`) throws
-`MalformedClaimError` with `claim` `"payload"`. A payload class that declares `sites` must leave it
-undefined for a user without the attribute; a default of `[]` is refused like any malformed claim.
-Like every entry, `./claims` resolves through `exports` only, so a TypeScript host needs
-`moduleResolution` `NodeNext` or `Bundler`.
+argument that is not an object, is a list, is a promise (a forgotten `await`), or is jose's whole
+`jwtVerify` result rather than its `.payload` throws `MalformedClaimError` with `claim` `"payload"`.
+A payload class that declares `sites` must leave it undefined for a user without the attribute; a
+default of `[]` is refused like any malformed claim. Like every entry, `./claims` resolves through
+`exports` only, so a TypeScript host needs `moduleResolution` `NodeNext` or `Bundler`.
 
 | Claim                       | Becomes               | A claim of the wrong shape         |
 | --------------------------- | --------------------- | ---------------------------------- |

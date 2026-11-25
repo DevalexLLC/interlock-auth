@@ -98,20 +98,24 @@ const clientRoles = (resourceAccess: unknown): string[] =>
     : [];
 
 /**
+ * Control characters, and the invisible format characters that turn up in pasted text: a byte-order
+ * mark, a zero-width space, and bidirectional controls. Other format characters (the zero-width
+ * joiner and non-joiner, a soft hyphen) are left alone, since they belong to names in some scripts.
+ */
+const INVISIBLE = /[\p{Cc}\uFEFF\u200B\u202A-\u202E\u2066-\u2069]/u;
+
+/**
  * `sites` is reductive: an absent claim means every site in the user's tenants, so a present
  * claim that is not what the realm issues must not read as absent. The mapper omits the claim
  * for a user with no value and never emits `[]`, so a present claim is a non-empty array of
  * non-empty strings or it is refused. A value is an exact `Site.name`, so one with leading or
- * trailing whitespace, or with a control or invisible format character, which can match no site,
+ * trailing whitespace, or with a control or invisible character (`INVISIBLE`), which can match no site,
  * is refused too, rather than leaving the user an
  * empty result with nothing to diagnose. Repeats are dropped, as they are for every list. A key
  * holding `undefined` counts as absent: a JSON token cannot carry `undefined`, and a payload class
  * with a declared `sites` field holds it for every user without the attribute. Such a class must
  * leave the field undefined: a default of `[]` or `null` is refused, like any other malformed claim.
  */
-/** Control and format characters (a zero-width space, a byte-order mark), which no site name holds. */
-const INVISIBLE = /[\p{Cc}\p{Cf}]/u;
-
 const sitesOf = (claims: Record<string, unknown>): string[] => {
   const value = claims.sites;
   if (value === undefined) return [];
@@ -128,6 +132,10 @@ const sitesOf = (claims: Record<string, unknown>): string[] => {
   return [...new Set(value as string[])];
 };
 
+/** jose's `jwtVerify` result, `{ payload, protectedHeader }`, rather than its payload. */
+const isVerifyResult = (value: Record<string, unknown>): boolean =>
+  isRecord(value.payload) && isRecord(value.protectedHeader);
+
 /**
  * Maps Keycloak's claims onto `NormalizedClaims` (the `interlock` README, "Claims"): realm roles
  * stay bare and each `resource_access.<client>.roles` entry becomes `<client>:<role>`, `groups`
@@ -135,16 +143,17 @@ const sitesOf = (claims: Record<string, unknown>): string[] => {
  * stays. For every claim but `sites`, a claim of the wrong shape, or an entry that is not a
  * non-empty string, is dropped rather than thrown on, which grants nothing. `sites` is checked
  * instead, because dropping it would widen access: a malformed one throws
- * `MalformedClaimError`, as does an argument that is not an object, is a list, or is a promise.
- * Pure.
+ * `MalformedClaimError`, as does an argument that is not an object, is a list, is a promise, or
+ * is a whole `jwtVerify` result. Pure.
  */
-export function normalizeClaims(claims: Record<string, unknown>): NormalizedClaims {
+export function normalizeClaims(claims: object): NormalizedClaims {
   // A loosely typed caller can pass what is not a payload at all (a failed decode's `undefined`).
   // Refused like a malformed claim, so it is a 403 and not a `TypeError` that becomes a 500. Any
   // object other than a list is read, a class instance or a wrapped payload included, as before.
-  // A thenable is refused too: it is what a forgotten `await` on an async verify passes, and read as
-  // a payload it would yield a caller with no claims rather than an error.
-  if (!isRecord(claims) || typeof claims.then === "function")
+  // A thenable is refused too: it is what a forgotten `await` on an async verify passes. So is jose's
+  // whole `jwtVerify` result where its `.payload` was meant. Read as payloads, either would yield a
+  // caller with no claims rather than an error.
+  if (!isRecord(claims) || typeof claims.then === "function" || isVerifyResult(claims))
     throw new MalformedClaimError("payload");
   return {
     roles: [...new Set([...rolesOf(claims.realm_access), ...clientRoles(claims.resource_access)])],
