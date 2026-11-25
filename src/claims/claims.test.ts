@@ -49,6 +49,19 @@ describe("normalizeClaims", () => {
     });
   });
 
+  it("should read roles from nested access objects that are class instances", () => {
+    class Access {
+      constructor(readonly roles: string[]) {}
+    }
+
+    expect(
+      normalizeClaims({
+        realm_access: new Access(["user"]),
+        resource_access: { "irongate-api": new Access(["admin"]) },
+      }).roles,
+    ).toEqual(["user", "irongate-api:admin"]);
+  });
+
   it.each([
     ["undefined", undefined],
     ["null", null],
@@ -156,6 +169,11 @@ describe("normalizeClaims", () => {
   describe("sites", () => {
     it("should be empty when the claim is absent", () => {
       expect(normalizeClaims({ groups: ["NY"] }).sites).toEqual([]);
+    });
+
+    // A payload class with a declared `sites` field holds `undefined` for a user without one.
+    it("should read a key holding undefined as absent", () => {
+      expect(normalizeClaims({ groups: ["NY"], sites: undefined }).sites).toEqual([]);
     });
 
     it.each([

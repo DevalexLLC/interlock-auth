@@ -1,4 +1,9 @@
-import { isPlainObject } from "../core/plain-object.js";
+/**
+ * An object other than a list. Claims are read from any such object, a class instance included
+ * (a payload hydrated by class-transformer), so a plain-object check would drop its roles.
+ */
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /**
  * The claim shape the APIs authorize on. It keeps the previous OpenID provider's field names, but
@@ -27,25 +32,14 @@ export interface NormalizedClaims {
  * `instanceof` would compare against the other copy's class.
  */
 export class MalformedClaimError extends Error {
-  // On the prototype, not an instance field: a field is set after `super()` returns, by when the
-  // stack trace has already been written with the inherited name `Error`.
-  static {
-    // Not enumerable, as `Error.prototype.name` is, so a `for…in` over the error does not list it.
-    Object.defineProperty(this.prototype, "name", {
-      value: "MalformedClaimError",
-      writable: true,
-      configurable: true,
-      enumerable: false,
-    });
-  }
-
   constructor(
     /** The claim's name, such as `sites`. Never its value. */
     readonly claim: string,
   ) {
     super(`The token's ${claim} claim is malformed`);
-    // Also an own property, as the client's errors set it, so a copy of the error's own fields
-    // (a spread, a log serializer) keeps it.
+    // An own property, as the client's errors set it, so a copy of the error's own fields (a log
+    // serializer, `Object.entries`) keeps it. V8 writes the stack header lazily, so it reads
+    // `MalformedClaimError:` too.
     this.name = "MalformedClaimError";
   }
 }
@@ -58,12 +52,12 @@ export interface MalformedClaim {
 
 /**
  * Whether `error` is a `MalformedClaimError`, from this copy of the package or another, from
- * another `vm` realm, or as a copy of its own fields. Checked by shape rather than by prototype,
- * as `isPlainObject` is: `instanceof` compares against one copy's class and one realm's `Error`.
- * It narrows to `MalformedClaim`, not to the class, because the object it recognizes need not
- * have the class's other members. An error that crossed a structured clone (a worker's
- * `postMessage`) is not recognized: the clone resets its name to `Error` and drops `claim`, so
- * classify it before it crosses.
+ * another `vm` realm, or as a copy of its own fields. Checked by shape rather than by prototype:
+ * `instanceof` compares against one copy's class and one realm's `Error`. It narrows to
+ * `MalformedClaim`, not to the class, because the object it recognizes need not have the class's
+ * other members. An error that crossed a structured clone (a worker's `postMessage`) is not
+ * recognized: the clone resets its name to `Error` and drops `claim`, so classify it before it
+ * crosses.
  */
 export const isMalformedClaimError = (error: unknown): error is MalformedClaim => {
   if (typeof error !== "object" || error === null) return false;
@@ -88,11 +82,11 @@ const strings = (value: unknown): string[] =>
  * name, every entry splits one way at its last `:`. A dropped role grants nothing.
  */
 const rolesOf = (access: unknown): string[] =>
-  isPlainObject(access) ? strings(access.roles).filter((role) => !role.includes(":")) : [];
+  isRecord(access) ? strings(access.roles).filter((role) => !role.includes(":")) : [];
 
 /** `resource_access` as `<client>:<role>` entries. A client ID may hold `:` (SAML clients). */
 const clientRoles = (resourceAccess: unknown): string[] =>
-  isPlainObject(resourceAccess)
+  isRecord(resourceAccess)
     ? Object.entries(resourceAccess).flatMap(([client, access]) =>
         rolesOf(access).map((role) => `${client}:${role}`),
       )
@@ -104,7 +98,9 @@ const clientRoles = (resourceAccess: unknown): string[] =>
  * for a user with no value and never emits `[]`, so a present claim is a non-empty array of
  * non-empty strings or it is refused. A value is an exact `Site.name`, so one with leading or
  * trailing whitespace, which can match no site, is refused too, rather than leaving the user an
- * empty result with nothing to diagnose. Repeats are dropped, as they are for every list.
+ * empty result with nothing to diagnose. Repeats are dropped, as they are for every list. A key
+ * holding `undefined` counts as absent: a JSON token cannot carry `undefined`, and a payload class
+ * with a declared `sites` field holds it for every user without the attribute.
  */
 const sitesOf = (claims: Record<string, unknown>): string[] => {
   const value = claims.sites;
@@ -134,8 +130,7 @@ export function normalizeClaims(claims: Record<string, unknown>): NormalizedClai
   // A loosely typed caller can pass what is not a payload at all (a failed decode's `undefined`).
   // Refused like a malformed claim, so it is a 403 and not a `TypeError` that becomes a 500. Any
   // object other than a list is read, a class instance or a wrapped payload included, as before.
-  if (typeof claims !== "object" || claims === null || Array.isArray(claims))
-    throw new MalformedClaimError("payload");
+  if (!isRecord(claims)) throw new MalformedClaimError("payload");
   return {
     roles: [...new Set([...rolesOf(claims.realm_access), ...clientRoles(claims.resource_access)])],
     groups: strings(claims.groups),
