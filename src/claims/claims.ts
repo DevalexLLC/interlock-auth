@@ -15,7 +15,10 @@ export interface NormalizedClaims {
    * name holds `:` is dropped, so no entry can be read two ways.
    */
   roles: string[];
-  /** Group names, bare rather than paths, without repeats. */
+  /**
+   * Group names, without repeats, as the token carries them: bare names, because the realm's group
+   * mapper has `full.path` off. A path is passed through, not shortened.
+   */
   groups: string[];
   /** Tenant identifiers, from `tenant_ids`, without repeats. */
   tenants: string[];
@@ -98,11 +101,14 @@ const clientRoles = (resourceAccess: unknown): string[] =>
     : [];
 
 /**
- * Control characters, and the invisible format characters that turn up in pasted text: a byte-order
- * mark, a zero-width space, and bidirectional controls. Other format characters (the zero-width
- * joiner and non-joiner, a soft hyphen) are left alone, since they belong to names in some scripts.
+ * Control characters, and the invisible characters that turn up in pasted text: a byte-order mark,
+ * a zero-width space, the word joiner and invisible operators (U+2060-U+2064), the line and
+ * paragraph separators, and every bidirectional mark and control (LRM, RLM, ALM, the embeddings,
+ * overrides and isolates). Other format characters (the zero-width joiner and non-joiner, a soft
+ * hyphen) are left alone, since they belong to names in some scripts.
  */
-const INVISIBLE = /[\p{Cc}\uFEFF\u200B\u202A-\u202E\u2066-\u2069]/u;
+const INVISIBLE =
+  /[\p{Cc}\uFEFF\u200B\u200E\u200F\u061C\u2028\u2029\u202A-\u202E\u2060-\u2064\u2066-\u2069]/u;
 
 /**
  * `sites` is reductive: an absent claim means every site in the user's tenants, so a present
@@ -132,9 +138,13 @@ const sitesOf = (claims: Record<string, unknown>): string[] => {
   return [...new Set(value as string[])];
 };
 
-/** jose's `jwtVerify` result, `{ payload, protectedHeader }`, rather than its payload. */
+/**
+ * jose's `jwtVerify` result, `{ payload, protectedHeader }`, rather than its payload. A real token
+ * always carries its own `sub`, so one that happens to hold claims of those two names is not taken
+ * for it.
+ */
 const isVerifyResult = (value: Record<string, unknown>): boolean =>
-  isRecord(value.payload) && isRecord(value.protectedHeader);
+  value.sub === undefined && isRecord(value.payload) && isRecord(value.protectedHeader);
 
 /**
  * Maps Keycloak's claims onto `NormalizedClaims` (the `interlock` README, "Claims"): realm roles

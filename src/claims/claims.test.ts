@@ -36,6 +36,18 @@ describe("normalizeClaims", () => {
     });
   });
 
+  // A token whose own claims happen to be named `payload` and `protectedHeader` still has a `sub`.
+  it("should read a token that carries payload and protectedHeader claims", () => {
+    expect(
+      normalizeClaims({
+        sub: "f3a1",
+        payload: { a: 1 },
+        protectedHeader: { alg: "RS256" },
+        groups: ["NY"],
+      }).groups,
+    ).toEqual(["NY"]);
+  });
+
   it("should say the payload, not a claim, is wrong", () => {
     expect(() => normalizeClaims(undefined as unknown as object)).toThrow(
       "The token payload is not an object",
@@ -218,6 +230,11 @@ describe("normalizeClaims", () => {
       ["a value with a byte-order mark", ["\uFEFFsite-a"]],
       ["a value with a control character", ["site-a\u0000"]],
       ["a value with a bidirectional control", ["site-a\u202E"]],
+      ["a value with a right-to-left mark", ["\u200Fsite-a"]],
+      ["a value with a left-to-right mark", ["site-a\u200E"]],
+      ["a value with an Arabic letter mark", ["site-a\u061C"]],
+      ["a value with a word joiner", ["site\u2060a"]],
+      ["a value with a line separator", ["site-a\u2028"]],
     ])("should refuse %s", (_case, sites) => {
       expect(() => normalizeClaims({ sites })).toThrow(MalformedClaimError);
     });
