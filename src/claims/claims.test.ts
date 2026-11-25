@@ -274,7 +274,7 @@ describe("normalizeClaims", () => {
       expect(isMalformedClaimError(copy)).toBe(true);
     });
 
-    it("should not make its name enumerable on the prototype", () => {
+    it("should have only `claim` and `name` as enumerable fields", () => {
       const inherited: string[] = [];
       // oxlint-disable-next-line guard-for-in
       for (const key in new MalformedClaimError("sites")) inherited.push(key);

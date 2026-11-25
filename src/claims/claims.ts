@@ -100,7 +100,8 @@ const clientRoles = (resourceAccess: unknown): string[] =>
  * trailing whitespace, which can match no site, is refused too, rather than leaving the user an
  * empty result with nothing to diagnose. Repeats are dropped, as they are for every list. A key
  * holding `undefined` counts as absent: a JSON token cannot carry `undefined`, and a payload class
- * with a declared `sites` field holds it for every user without the attribute.
+ * with a declared `sites` field holds it for every user without the attribute. Such a class must
+ * leave the field undefined: a default of `[]` or `null` is refused, like any other malformed claim.
  */
 const sitesOf = (claims: Record<string, unknown>): string[] => {
   const value = claims.sites;
