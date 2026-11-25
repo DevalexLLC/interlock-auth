@@ -204,16 +204,16 @@ describe("normalizeClaims", () => {
     // Another realm (a `vm` context, a test runner's sandbox) has its own `Error`.
     it("should recognize the error from another realm", () => {
       const foreign = Object.create(null) as Record<string, unknown>;
-      Object.assign(foreign, { name: "MalformedClaimError", claim: "sites", message: "x" });
+      Object.assign(foreign, { name: "MalformedClaimError", claim: "sites" });
 
       expect(isMalformedClaimError(foreign)).toBe(true);
     });
 
-    it("should keep its name in a copy of its own fields", () => {
-      expect(Object.fromEntries(Object.entries(new MalformedClaimError("sites")))).toMatchObject({
-        name: "MalformedClaimError",
-        claim: "sites",
-      });
+    it("should keep its name in a copy of its own fields, which the guard recognizes", () => {
+      const copy = Object.fromEntries(Object.entries(new MalformedClaimError("sites")));
+
+      expect(copy).toMatchObject({ name: "MalformedClaimError", claim: "sites" });
+      expect(isMalformedClaimError(copy)).toBe(true);
     });
 
     it("should name the error in its stack trace", () => {
@@ -226,7 +226,8 @@ describe("normalizeClaims", () => {
         "an error of the same name without a claim",
         Object.assign(new Error("x"), { name: "MalformedClaimError" }),
       ],
-      ["an object without a message", { name: "MalformedClaimError", claim: "sites" }],
+      ["an object whose claim is not a string", { name: "MalformedClaimError", claim: 1 }],
+      ["an object of another name", { name: "Error", claim: "sites" }],
       ["undefined", undefined],
     ])("should not recognize %s", (_case, value) => {
       expect(isMalformedClaimError(value)).toBe(false);

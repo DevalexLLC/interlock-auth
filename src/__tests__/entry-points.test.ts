@@ -4,9 +4,13 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-// Comments, removed before the scan so that one inside a multi-line import cannot hide it. A `//`
-// counts only at a line's start or after whitespace, so a URL in a string is left alone.
-const COMMENTS = /\/\*[\s\S]*?\*\/|(?<=^|\s)\/\/[^\n]*/g;
+// Comments, removed before the scan so that one inside a multi-line import cannot hide it. String
+// literals are matched first and kept, so a `/*` or `//` inside one ("sites/*", a URL) is not read
+// as a comment and cannot erase the code after it.
+const COMMENTS_OR_STRINGS =
+  /("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`)|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g;
+const withoutComments = (text: string): string =>
+  text.replaceAll(COMMENTS_OR_STRINGS, (_match, literal?: string) => literal ?? "");
 
 // The specifier of an `import`/`export … from` clause, a side-effect `import "x"`, a dynamic
 // `import(…)`, or a `require(…)` (`import x = require(…)` included), with a string or template
@@ -59,7 +63,7 @@ describe("entry points", () => {
     const visit = (file: string): void => {
       if (seen.has(file)) return;
       seen.add(file);
-      const text = readFileSync(file, "utf8").replaceAll(COMMENTS, "");
+      const text = withoutComments(readFileSync(file, "utf8"));
       for (const [, fromClause, sideEffect, dynamic] of text.matchAll(IMPORT_SPECIFIER)) {
         const specifier = fromClause ?? sideEffect ?? dynamic;
         if (specifier === undefined) continue;

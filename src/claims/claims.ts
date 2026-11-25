@@ -48,7 +48,6 @@ export class MalformedClaimError extends Error {
 export interface MalformedClaim {
   name: "MalformedClaimError";
   claim: string;
-  message: string;
 }
 
 /**
@@ -59,8 +58,9 @@ export interface MalformedClaim {
  */
 export const isMalformedClaimError = (error: unknown): error is MalformedClaim => {
   if (typeof error !== "object" || error === null) return false;
-  const { name, claim, message } = error as { name?: unknown; claim?: unknown; message?: unknown };
-  return name === "MalformedClaimError" && typeof claim === "string" && typeof message === "string";
+  // Not `message`: an `Error`'s message is not enumerable, so a copy of the fields drops it.
+  const { name, claim } = error as { name?: unknown; claim?: unknown };
+  return name === "MalformedClaimError" && typeof claim === "string";
 };
 
 /**
