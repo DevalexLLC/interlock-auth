@@ -165,8 +165,8 @@ export function normalizeClaims(claims: object): NormalizedClaims {
   // Refused like a malformed claim, so it is a 403 and not a `TypeError` that becomes a 500. Any
   // object other than a list is read, a class instance or a wrapped payload included, as before.
   // A thenable is refused too: it is what a forgotten `await` on an async verify passes. So is
-  // jose's whole `jwtVerify` result where its `.payload` was meant. Read as payloads, either would yield a
-  // caller with no claims rather than an error.
+  // jose's whole `jwtVerify` result where its `.payload` was meant. Read as payloads, either would
+  // yield a caller with no claims rather than an error.
   if (!isRecord(claims) || typeof claims.then === "function" || isVerifyResult(claims))
     throw new MalformedClaimError("payload");
   return {
