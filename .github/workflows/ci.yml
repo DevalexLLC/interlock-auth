@@ -53,15 +53,18 @@ jobs:
       - name: Verify package contents
         run: |
           tsgo="$PWD/node_modules/.bin/tsgo"
-          # Better Auth and Kysely are optional peers, so the root entry's consumer installs them
-          # itself, at the versions the package declares, as a host does.
-          peers="$(node -p 'const p = require("./package.json").peerDependencies; ["better-auth", "kysely"].map((n) => `${n}@${p[n]}`).join(" ")')"
+          # Every peer is optional, so each consumer installs the ones its entries need itself, at
+          # the versions the package declares, as a host does.
+          peer() { node -p "require('./package.json').peerDependencies['$1']"; }
+          better_auth="better-auth@$(peer better-auth)"
+          kysely="kysely@$(peer kysely)"
+          react="react@$(peer react)"
           consumer="$(mktemp -d)"
           npm pack --pack-destination "$consumer"
           cd "$consumer"
           npm init -y >/dev/null
           npm pkg set type=module
-          npm install --silent ./*.tgz react $peers
+          npm install --silent ./*.tgz "$react" "$better_auth" "$kysely"
           for sub in "" "/claims" "/next" "/react"; do
             echo "import @devalexllc/interlock-auth$sub"
             node --input-type=module -e "await import('@devalexllc/interlock-auth$sub')"
@@ -136,6 +139,17 @@ jobs:
           EOF
           echo "type-check backend.ts (NodeNext, no optional peers)"
           "$tsgo" --noEmit --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck backend.ts
+
+          # `./react` loads `better-auth/react` and React, and nothing from Kysely: a frontend host
+          # declares React and Better Auth only.
+          frontend="$(mktemp -d)"
+          cp ./*.tgz "$frontend"
+          cd "$frontend"
+          npm init -y >/dev/null
+          npm pkg set type=module
+          npm install --silent ./*.tgz "$react" "$better_auth"
+          echo "import @devalexllc/interlock-auth/react with React and Better Auth only"
+          node --input-type=module -e "await import('@devalexllc/interlock-auth/react')"
 
   # A separate job, not a step in the matrix: the analysis is a property of the
   # code, not of the Node version it ran under, and pushing the same project key

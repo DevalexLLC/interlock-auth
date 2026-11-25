@@ -107,6 +107,16 @@ describe("normalizeClaims", () => {
     expect(normalizeClaims(claims)).toEqual(EMPTY);
   });
 
+  it("should drop repeats from every list, keeping first-seen order", () => {
+    expect(
+      normalizeClaims({
+        groups: ["NY", "NJ", "NY"],
+        tenant_ids: ["ny", "ny"],
+        internal_groups: ["ops", "ops"],
+      }),
+    ).toMatchObject({ groups: ["NY", "NJ"], tenants: ["ny"], internal_groups: ["ops"] });
+  });
+
   it("should keep the strings of a list and drop every other entry", () => {
     expect(
       normalizeClaims({

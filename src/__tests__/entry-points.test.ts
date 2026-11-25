@@ -4,6 +4,12 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+// The specifier of a static `import` or `export … from` statement, including a side-effect
+// `import "x"`, or of a dynamic `import(…)` with a string or template literal. Anchored to the
+// start of a line or to `import(`, so a call such as `Array.from("x")` is not read as an import.
+const IMPORT_SPECIFIER =
+  /^\s*(?:import|export)\b[^;]*?\bfrom\s*["'`]([^"'`]+)["'`]|^\s*import\s*["'`]([^"'`]+)["'`]|\bimport\s*\(\s*["'`]([^"'`]+)["'`]/gm;
+
 // A relative specifier names the emitted `.js`; its source is `.ts` or `.tsx`, or a folder's
 // `index`. One that resolves to none of them is reported, not thrown on.
 const sourceOf = (from: string, specifier: string): string | undefined => {
@@ -44,7 +50,8 @@ describe("entry points", () => {
       if (seen.has(file)) return;
       seen.add(file);
       const text = readFileSync(file, "utf8");
-      for (const [, specifier] of text.matchAll(/(?:from|import)\s*\(?\s*["']([^"']+)["']/g)) {
+      for (const [, fromClause, sideEffect, dynamic] of text.matchAll(IMPORT_SPECIFIER)) {
+        const specifier = fromClause ?? sideEffect ?? dynamic;
         if (specifier === undefined) continue;
         if (!specifier.startsWith(".")) {
           bare.push(`${file.slice(src.length)}: ${specifier}`);

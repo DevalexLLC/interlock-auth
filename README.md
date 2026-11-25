@@ -107,15 +107,15 @@ It verifies nothing itself; the caller passes the payload of a token it has alre
 Client roles carry their client's name, so `irongate-api:admin` never reads as a realm role
 named `admin`. A realm or client role whose own name holds `:` is dropped, so every entry splits
 one way at its last `:` and no realm role can pass for a client role; a client ID may hold `:`.
-Repeats are dropped from `roles` and `sites`. `sites` is reductive: an absent claim means every site in the user's tenants,
+Every list comes back without repeats, in first-seen order. `sites` is reductive: an absent claim means every site in the user's tenants,
 and the result is `[]`. Dropping a malformed one would read the same way and widen access, so
 a present claim that is not a non-empty array of non-empty strings (`[]` included) throws
 `MalformedClaimError`, whose `claim` names the claim and never its value. A refresh cannot repair
 it, so a caller answers 403, not 401.
 
 The entry imports nothing from Better Auth, Kysely, React, or Next.js. Those peers are optional
-from `0.3.0`, so a backend that installs the package for `./claims` gets none of them; the root
-entry, which needs Better Auth and Kysely, still requires the host to install them.
+from `0.3.0`, so a backend that installs the package for `./claims` gets none of them. The root
+entry needs Better Auth and Kysely, and `./react` needs Better Auth, so their hosts install them.
 
 ### Logging
 
@@ -137,7 +137,8 @@ second copy installed, the router would not recognize the package's errors as it
 refuses a conflicting peer at install time, but that does not prove a single copy, so check
 `npm ls better-auth` after an install. `kysely` (`^0.29.0`) is a peer for the same reason;
 `jose` is the package's own dependency. Both peers are optional from `0.3.0`, so that a backend
-can install the package for `./claims` alone: a host of the root entry declares them itself.
+can install the package for `./claims` alone: a host of the root entry declares both itself, and a
+host of `./react`, which loads `better-auth/react`, declares `better-auth`.
 
 **Better Auth bumps go to the package first, then to its consumers.** Bump the peer and the
 development dependency here, run the suite (the route-table pin in `exposure.test.ts` fails

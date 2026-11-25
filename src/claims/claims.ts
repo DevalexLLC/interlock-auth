@@ -7,13 +7,13 @@ export interface NormalizedClaims {
    * name holds `:` is dropped, so no entry can be read two ways.
    */
   roles: string[];
-  /** Group names, bare rather than paths. */
+  /** Group names, bare rather than paths, without repeats. */
   groups: string[];
-  /** Tenant identifiers, from `tenant_ids`. */
+  /** Tenant identifiers, from `tenant_ids`, without repeats. */
   tenants: string[];
   /** Site names from the `sites` user attribute, without repeats. Empty when the claim is absent. */
   sites: string[];
-  /** Names of groups under the internal root. */
+  /** Names of groups under the internal root, without repeats. */
   internal_groups: string[];
 }
 
@@ -32,10 +32,13 @@ export class MalformedClaimError extends Error {
   }
 }
 
-/** The strings of a claim that should be a string array; anything else is dropped. */
+/**
+ * The strings of a claim that should be a string array, without repeats, in first-seen order;
+ * anything else is dropped.
+ */
 const strings = (value: unknown): string[] =>
   Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string" && item !== "")
+    ? [...new Set(value.filter((item): item is string => typeof item === "string" && item !== ""))]
     : [];
 
 /**
