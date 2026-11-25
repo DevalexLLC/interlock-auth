@@ -141,8 +141,9 @@ jobs:
           echo "type-check backend.ts (NodeNext, no optional peers)"
           "$tsgo" --noEmit --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck backend.ts
 
-          # `./react` loads `better-auth/react` and React, and nothing from Kysely: a frontend host
-          # declares React and Better Auth only.
+          # `./react` loads `better-auth/react` and React, and a frontend host declares those two.
+          # Better Auth depends on Kysely itself, so this does not show that `./react` avoids
+          # Kysely, only that a host declaring React and Better Auth can load it.
           frontend="$(mktemp -d)"
           cp ./*.tgz "$frontend"
           cd "$frontend"

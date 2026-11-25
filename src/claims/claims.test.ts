@@ -201,13 +201,25 @@ describe("normalizeClaims", () => {
       expect(isMalformedClaimError(error)).toBe(true);
     });
 
+    // Another realm (a `vm` context, a test runner's sandbox) has its own `Error`.
+    it("should recognize the error from another realm", () => {
+      const foreign = Object.create(null) as Record<string, unknown>;
+      Object.assign(foreign, { name: "MalformedClaimError", claim: "sites", message: "x" });
+
+      expect(isMalformedClaimError(foreign)).toBe(true);
+    });
+
+    it("should name the error in its stack trace", () => {
+      expect(new MalformedClaimError("sites").stack).toMatch(/^MalformedClaimError: /);
+    });
+
     it.each([
       ["another error", new Error("sites")],
       [
         "an error of the same name without a claim",
         Object.assign(new Error("x"), { name: "MalformedClaimError" }),
       ],
-      ["a plain object", { name: "MalformedClaimError", claim: "sites" }],
+      ["an object without a message", { name: "MalformedClaimError", claim: "sites" }],
       ["undefined", undefined],
     ])("should not recognize %s", (_case, value) => {
       expect(isMalformedClaimError(value)).toBe(false);

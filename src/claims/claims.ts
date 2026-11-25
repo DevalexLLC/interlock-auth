@@ -1,6 +1,9 @@
 import { isPlainObject } from "../core/plain-object.js";
 
-/** The claim shape the APIs authorize on, as their previous OpenID provider issued it. */
+/**
+ * The claim shape the APIs authorize on. It keeps the previous OpenID provider's field names, but
+ * `roles` namespaces client roles by client ID, where that provider issued one flat list.
+ */
 export interface NormalizedClaims {
   /**
    * Realm roles bare, and each client's roles as `<client>:<role>`, without repeats. A role whose
@@ -24,7 +27,11 @@ export interface NormalizedClaims {
  * `instanceof` would compare against the other copy's class.
  */
 export class MalformedClaimError extends Error {
-  override readonly name = "MalformedClaimError";
+  // On the prototype, not an instance field: a field is set after `super()` returns, by when the
+  // stack trace has already been written with the inherited name `Error`.
+  static {
+    this.prototype.name = "MalformedClaimError";
+  }
 
   constructor(
     /** The claim's name, such as `sites`. Never its value. */
@@ -34,11 +41,16 @@ export class MalformedClaimError extends Error {
   }
 }
 
-/** Whether `error` is a `MalformedClaimError`, from this copy of the package or another. */
-export const isMalformedClaimError = (error: unknown): error is MalformedClaimError =>
-  error instanceof Error &&
-  error.name === "MalformedClaimError" &&
-  typeof (error as { claim?: unknown }).claim === "string";
+/**
+ * Whether `error` is a `MalformedClaimError`, from this copy of the package or another, or from
+ * another realm. Checked by shape rather than by prototype, as `isPlainObject` is: `instanceof`
+ * compares against one copy's class and one realm's `Error`.
+ */
+export const isMalformedClaimError = (error: unknown): error is MalformedClaimError => {
+  if (typeof error !== "object" || error === null) return false;
+  const { name, claim, message } = error as { name?: unknown; claim?: unknown; message?: unknown };
+  return name === "MalformedClaimError" && typeof claim === "string" && typeof message === "string";
+};
 
 /**
  * The strings of a claim that should be a string array, without repeats, in first-seen order;

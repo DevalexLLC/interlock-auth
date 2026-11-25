@@ -80,8 +80,8 @@ entry exports:
   (`0001_session_grant`, for Kysely's `Migrator`, after Better Auth's tables exist);
   `ensureAccountTokensInvariant` scrubs and guards `account` against tokens and belongs in
   every migration run; `accountTokensProblems` verifies it.
-- **Claims.** `normalizeClaims` and `MalformedClaimError`, re-exported from the `./claims`
-  entry (below).
+- **Claims.** `normalizeClaims`, `NormalizedClaims`, `MalformedClaimError`, and
+  `isMalformedClaimError`, re-exported from the `./claims` entry (below).
 
 ## The `./claims` entry
 
@@ -140,7 +140,9 @@ refuses a conflicting peer at install time, but that does not prove a single cop
 `npm ls better-auth` after an install. `kysely` (`^0.29.0`) is a peer for the same reason;
 `jose` is the package's own dependency. Both peers are optional from `0.3.0`, so that a backend
 can install the package for `./claims` alone: a host of the root entry declares both itself, and a
-host of `./react`, which loads `better-auth/react`, declares `better-auth`.
+host of `./react`, which loads `better-auth/react`, declares `better-auth`. Better Auth depends on
+Kysely itself, so a host with Better Auth always gets a copy; declaring `kysely` is what makes it
+the version this package supports.
 
 **Better Auth bumps go to the package first, then to its consumers.** Bump the peer and the
 development dependency here, run the suite (the route-table pin in `exposure.test.ts` fails
