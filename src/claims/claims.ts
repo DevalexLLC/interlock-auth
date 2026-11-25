@@ -102,25 +102,26 @@ const clientRoles = (resourceAccess: unknown): string[] =>
     : [];
 
 /**
- * Every control (`Cc`) and format (`Cf`) character, and the line and paragraph separators, except
- * the three format characters that belong to names in some scripts: the zero-width non-joiner and
- * joiner (U+200C, U+200D) and the soft hyphen (U+00AD). Refusing the whole categories, rather than
- * a list, covers what pasted text carries (a byte-order mark, a zero-width space, bidirectional
- * marks and controls, tag characters) without chasing each one.
+ * Every character of Unicode's "Other" category (`C`: controls, format characters, surrogates,
+ * private-use characters, and unassigned code points), and the line and paragraph separators,
+ * except the three format characters that belong to names in some scripts: the zero-width
+ * non-joiner and joiner (U+200C, U+200D) and the soft hyphen (U+00AD). Refusing the whole
+ * categories, rather than a list, covers what pasted text carries (a byte-order mark, a zero-width
+ * space, bidirectional marks and controls, tag characters) without chasing each one.
  */
-const INVISIBLE = /(?!\u200C|\u200D|\u00AD)[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+const INVISIBLE = /(?!\u200C|\u200D|\u00AD)[\p{C}\p{Zl}\p{Zp}]/u;
 
 /**
- * `sites` is reductive: an absent claim means every site in the user's tenants, so a present
- * claim that is not what the realm issues must not read as absent. The mapper omits the claim
- * for a user with no value and never emits `[]`, so a present claim is a non-empty array of
- * non-empty strings or it is refused. A value is an exact `Site.name`, so one with leading or
- * trailing whitespace, or with a control or invisible character (`INVISIBLE`), which can match no site,
- * is refused too, rather than leaving the user an
- * empty result with nothing to diagnose. Repeats are dropped, as they are for every list. A key
- * holding `undefined` counts as absent: a JSON token cannot carry `undefined`, and a payload class
- * with a declared `sites` field holds it for every user without the attribute. Such a class must
- * leave the field undefined: a default of `[]` or `null` is refused, like any other malformed claim.
+ * `sites` is reductive: an absent claim means every site in the user's tenants, so a present claim
+ * that is not what the realm issues must not read as absent. The mapper omits the claim for a user
+ * with no value and never emits `[]`, so a present claim is a non-empty array of non-empty strings
+ * or it is refused. A value is an exact `Site.name`, so one with leading or trailing whitespace, or
+ * with a control or invisible character (`INVISIBLE`), which can match no site, is refused too,
+ * rather than leaving the user an empty result with nothing to diagnose. Repeats are dropped, as
+ * they are for every list. A key holding `undefined` counts as absent: a JSON token cannot carry
+ * `undefined`, and a payload class with a declared `sites` field holds it for every user without
+ * the attribute. Such a class must leave the field undefined: a default of `[]` or `null` is
+ * refused, like any other malformed claim.
  */
 const sitesOf = (claims: Record<string, unknown>): string[] => {
   const value = claims.sites;

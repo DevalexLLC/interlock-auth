@@ -115,9 +115,10 @@ at its last `:` and no realm role can pass for a client role; a client ID may ho
 comes back without repeats, in first-seen order. `sites` is reductive: an absent claim means every
 site in the user's tenants, and the result is `[]`. Dropping a malformed one would read the same way
 and widen access, so a present claim that is not a non-empty array of non-empty strings (`[]`
-included), or that holds a value with leading or trailing whitespace, or any control or format
-character or line or paragraph separator (a byte-order mark, a zero-width space, a bidirectional
-mark, a tag character), except the zero-width joiner, non-joiner, and soft hyphen, which belong to
+included), or that holds a value with leading or trailing whitespace, or any character of Unicode's
+"Other" category or a line or paragraph separator (a control or format character such as a
+byte-order mark, a zero-width space, or a bidirectional mark; a surrogate; a private-use or
+unassigned code point), except the zero-width joiner, non-joiner, and soft hyphen, which belong to
 names in some scripts, throws `MalformedClaimError`, whose `claim` names the claim and never its
 value. A refresh cannot repair it, so a caller answers 403, not 401. Recognize it with
 `isMalformedClaimError(error)` rather than `instanceof`, which fails when two copies of the package

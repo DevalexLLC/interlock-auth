@@ -262,6 +262,9 @@ describe("normalizeClaims", () => {
       ["a value with a Mongolian vowel separator", ["site-a\u180E"]],
       ["a value with a tag character", ["site-a\u{E0041}"]],
       ["a value with a paragraph separator", ["site-a\u2029"]],
+      ["a value with a lone surrogate", ["site-a\uD800"]],
+      ["a value with a noncharacter", ["site-a\uFFFE"]],
+      ["a value with a private-use character", ["site-a\uE000"]],
     ])("should refuse %s", (_case, sites) => {
       expect(() => normalizeClaims({ sites })).toThrow(MalformedClaimError);
     });
