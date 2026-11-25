@@ -1,8 +1,9 @@
 // Root entry: the framework-agnostic core. Better Auth options for the Keycloak provider with
 // session-scoped grants, the grant store and its refresher, the exposure allow-list, the
 // back-channel receiver and RP-initiated logout, and claim normalization, re-exported from the
-// `./claims` entry. Free of React and Next.js, so a server or a test process can import it without
-// either.
+// `./claims` entry. Free of React and Next.js, but it loads Better Auth and Kysely, which are
+// optional peers: a host of this entry installs both. A backend that needs only claim
+// normalization imports `./claims`, which loads neither.
 
 export {
   isMalformedClaimError,

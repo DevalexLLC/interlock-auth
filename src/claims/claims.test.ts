@@ -230,6 +230,7 @@ describe("normalizeClaims", () => {
       ["a value with a zero-width non-joiner", ["\u0645\u06CC\u200C\u0631\u0648\u062F"]],
       ["a value with a zero-width joiner", ["site\u200Da"]],
       ["a value with a soft hyphen", ["site\u00ADa"]],
+      ["a value in composed form", ["Caf\u00E9"]],
     ])("should keep %s", (_case, sites) => {
       expect(normalizeClaims({ sites }).sites).toEqual(sites);
     });
@@ -265,6 +266,7 @@ describe("normalizeClaims", () => {
       ["a value with a lone surrogate", ["site-a\uD800"]],
       ["a value with a noncharacter", ["site-a\uFFFE"]],
       ["a value with a private-use character", ["site-a\uE000"]],
+      ["a value in decomposed form", ["Cafe\u0301"]],
     ])("should refuse %s", (_case, sites) => {
       expect(() => normalizeClaims({ sites })).toThrow(MalformedClaimError);
     });

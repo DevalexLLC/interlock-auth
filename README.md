@@ -113,16 +113,16 @@ Client roles carry their client's name, so `irongate-api:admin` never reads as a
 `admin`. A realm or client role whose own name holds `:` is dropped, so every entry splits one way
 at its last `:` and no realm role can pass for a client role; a client ID may hold `:`. Every list
 comes back without repeats, in first-seen order. `sites` is reductive: an absent claim means every
-site in the user's tenants, and the result is `[]`. Dropping a malformed one would read the same way
-and widen access, so a present claim that is not a non-empty array of non-empty strings (`[]`
-included), or that holds a value with leading or trailing whitespace, or any character of Unicode's
-"Other" category or a line or paragraph separator (a control or format character such as a
-byte-order mark, a zero-width space, or a bidirectional mark; a surrogate; a private-use or
-unassigned code point), except the zero-width joiner, non-joiner, and soft hyphen, which belong to
-names in some scripts, throws `MalformedClaimError`, whose `claim` names the claim and never its
-value. A refresh cannot repair it, so a caller answers 403, not 401. Recognize it with
-`isMalformedClaimError(error)` rather than `instanceof`, which fails when two copies of the package
-are installed.
+site in the user's tenants, and the result is `[]`, so `[]` means unrestricted, never no site.
+Dropping a malformed one would read the same way and widen access, so a present claim that is not a
+non-empty array of non-empty strings (`[]` included), or that holds a value with leading or trailing
+whitespace, or any character of Unicode's "Other" category or a line or paragraph separator (a
+control or format character such as a byte-order mark, a zero-width space, or a bidirectional mark;
+a surrogate; a private-use or unassigned code point), except the zero-width joiner, non-joiner, and
+soft hyphen, which belong to names in some scripts, or that is not in Unicode NFC form, throws
+`MalformedClaimError`, whose `claim` names the claim and never its value. A refresh cannot repair
+it, so a caller answers 403, not 401. Recognize it with `isMalformedClaimError(error)` rather than
+`instanceof`, which fails when two copies of the package are installed.
 
 The entry imports nothing from Better Auth, Kysely, React, or Next.js. Those peers are optional
 from `0.3.0`, so a backend that installs the package for `./claims` gets none of them. The root

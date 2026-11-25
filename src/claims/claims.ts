@@ -22,7 +22,11 @@ export interface NormalizedClaims {
   groups: string[];
   /** Tenant identifiers, from `tenant_ids`, without repeats. */
   tenants: string[];
-  /** Site names from the `sites` attribute, without repeats. Empty when the claim is absent. */
+  /**
+   * Site names from the `sites` attribute, without repeats. Reductive: `[]` means the claim is
+   * absent and the user is unrestricted, seeing every site in their tenants. It never means no
+   * site, so a guard restricts to `sites` only when it is not empty.
+   */
   sites: string[];
   /** Names of groups under the internal root, without repeats. */
   internal_groups: string[];
@@ -116,12 +120,12 @@ const INVISIBLE = /(?!\u200C|\u200D|\u00AD)[\p{C}\p{Zl}\p{Zp}]/u;
  * that is not what the realm issues must not read as absent. The mapper omits the claim for a user
  * with no value and never emits `[]`, so a present claim is a non-empty array of non-empty strings
  * or it is refused. A value is an exact `Site.name`, so one with leading or trailing whitespace, or
- * with a control or invisible character (`INVISIBLE`), which can match no site, is refused too,
- * rather than leaving the user an empty result with nothing to diagnose. Repeats are dropped, as
- * they are for every list. A key holding `undefined` counts as absent: a JSON token cannot carry
- * `undefined`, and a payload class with a declared `sites` field holds it for every user without
- * the attribute. Such a class must leave the field undefined: a default of `[]` or `null` is
- * refused, like any other malformed claim.
+ * with a control or invisible character (`INVISIBLE`), or not in Unicode NFC form (a decomposed
+ * accent), which can match no site, is refused too, rather than leaving the user an empty result
+ * with nothing to diagnose. Repeats are dropped, as they are for every list. A key holding
+ * `undefined` counts as absent: a JSON token cannot carry `undefined`, and a payload class with a
+ * declared `sites` field holds it for every user without the attribute. Such a class must leave the
+ * field undefined: a default of `[]` or `null` is refused, like any other malformed claim.
  */
 const sitesOf = (claims: Record<string, unknown>): string[] => {
   const value = claims.sites;
@@ -132,7 +136,11 @@ const sitesOf = (claims: Record<string, unknown>): string[] => {
     // `Array.from`, not `value.every`: `every` skips the holes of a sparse list built in code.
     !Array.from(value as unknown[]).every(
       (site) =>
-        typeof site === "string" && site !== "" && site === site.trim() && !INVISIBLE.test(site),
+        typeof site === "string" &&
+        site !== "" &&
+        site === site.trim() &&
+        site === site.normalize("NFC") &&
+        !INVISIBLE.test(site),
     )
   )
     throw new MalformedClaimError("sites");
