@@ -4,11 +4,17 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-// The specifier of a static `import` or `export … from` statement, including a side-effect
-// `import "x"`, or of a dynamic `import(…)` with a string or template literal. Anchored to the
-// start of a line or to `import(`, so a call such as `Array.from("x")` is not read as an import.
+// Comments, removed before the scan so that one inside a multi-line import cannot hide it. A `//`
+// counts only at a line's start or after whitespace, so a URL in a string is left alone.
+const COMMENTS = /\/\*[\s\S]*?\*\/|(?<=^|\s)\/\/[^\n]*/g;
+
+// The specifier of an `import`/`export … from` clause, a side-effect `import "x"`, a dynamic
+// `import(…)`, or a `require(…)` (`import x = require(…)` included), with a string or template
+// literal. A `from` must be followed by the literal, so `Array.from("x")` is not read as an import.
+// A string that merely contains `from "x"` is read as one, which fails the test rather than
+// passing it.
 const IMPORT_SPECIFIER =
-  /^\s*(?:import|export)\b[^;]*?\bfrom\s*["'`]([^"'`]+)["'`]|^\s*import\s*["'`]([^"'`]+)["'`]|\bimport\s*\(\s*["'`]([^"'`]+)["'`]/gm;
+  /\bfrom\s*["'`]([^"'`]+)["'`]|\bimport\s*["'`]([^"'`]+)["'`]|\b(?:import|require)\s*\(\s*["'`]([^"'`]+)["'`]/g;
 
 // A relative specifier names the emitted `.js`; its source is `.ts` or `.tsx`, or a folder's
 // `index`. One that resolves to none of them is reported, not thrown on.
@@ -53,7 +59,7 @@ describe("entry points", () => {
     const visit = (file: string): void => {
       if (seen.has(file)) return;
       seen.add(file);
-      const text = readFileSync(file, "utf8");
+      const text = readFileSync(file, "utf8").replaceAll(COMMENTS, "");
       for (const [, fromClause, sideEffect, dynamic] of text.matchAll(IMPORT_SPECIFIER)) {
         const specifier = fromClause ?? sideEffect ?? dynamic;
         if (specifier === undefined) continue;

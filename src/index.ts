@@ -8,6 +8,7 @@ export {
   isMalformedClaimError,
   MalformedClaimError,
   normalizeClaims,
+  type MalformedClaim,
   type NormalizedClaims,
 } from "./claims/index.js";
 export {

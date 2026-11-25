@@ -139,7 +139,9 @@ jobs:
           export { claims, refused };
           EOF
           echo "type-check backend.ts (NodeNext, no optional peers)"
-          "$tsgo" --noEmit --module NodeNext --moduleResolution NodeNext --strict --skipLibCheck backend.ts
+          # No `--skipLibCheck`: the package's own declarations are checked too, so a type-only
+          # import of a peer in anything `./claims` reaches fails here.
+          "$tsgo" --noEmit --module NodeNext --moduleResolution NodeNext --strict backend.ts
 
           # `./react` loads `better-auth/react` and React, and a frontend host declares those two.
           # Better Auth depends on Kysely itself, so this does not show that `./react` avoids

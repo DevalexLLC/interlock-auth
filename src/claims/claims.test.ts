@@ -209,6 +209,13 @@ describe("normalizeClaims", () => {
       expect(isMalformedClaimError(foreign)).toBe(true);
     });
 
+    it("should keep its name in a copy of its own fields", () => {
+      expect({ ...new MalformedClaimError("sites") }).toMatchObject({
+        name: "MalformedClaimError",
+        claim: "sites",
+      });
+    });
+
     it("should name the error in its stack trace", () => {
       expect(new MalformedClaimError("sites").stack).toMatch(/^MalformedClaimError: /);
     });

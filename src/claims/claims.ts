@@ -38,15 +38,26 @@ export class MalformedClaimError extends Error {
     readonly claim: string,
   ) {
     super(`The token's ${claim} claim is malformed`);
+    // Also an own property, as the client's errors set it, so a copy of the error's own fields
+    // (a spread, a log serializer) keeps it.
+    this.name = "MalformedClaimError";
   }
+}
+
+/** What `isMalformedClaimError` establishes: the fields, not the class or `Error`'s other members. */
+export interface MalformedClaim {
+  name: "MalformedClaimError";
+  claim: string;
+  message: string;
 }
 
 /**
  * Whether `error` is a `MalformedClaimError`, from this copy of the package or another, or from
  * another realm. Checked by shape rather than by prototype, as `isPlainObject` is: `instanceof`
- * compares against one copy's class and one realm's `Error`.
+ * compares against one copy's class and one realm's `Error`. It narrows to `MalformedClaim`, not
+ * to the class, because the object it recognizes need not have the class's other members.
  */
-export const isMalformedClaimError = (error: unknown): error is MalformedClaimError => {
+export const isMalformedClaimError = (error: unknown): error is MalformedClaim => {
   if (typeof error !== "object" || error === null) return false;
   const { name, claim, message } = error as { name?: unknown; claim?: unknown; message?: unknown };
   return name === "MalformedClaimError" && typeof claim === "string" && typeof message === "string";
