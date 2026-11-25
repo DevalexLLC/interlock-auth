@@ -2,23 +2,62 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { parseAst } from "vite";
 import { describe, expect, it } from "vitest";
 
-// Comments, removed before the scan so that one inside a multi-line import cannot hide it. String
-// literals are matched first and kept, so a `/*` or `//` inside one ("sites/*", a URL) is not read
-// as a comment and cannot erase the code after it.
-const COMMENTS_OR_STRINGS =
-  /("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`)|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g;
-const withoutComments = (text: string): string =>
-  text.replaceAll(COMMENTS_OR_STRINGS, (_match, literal?: string) => literal ?? "");
+// A string literal, or a template literal with no substitutions; `null` for anything else.
+const literal = (node: unknown): string | null => {
+  const value = node as {
+    type?: string;
+    value?: unknown;
+    expressions?: unknown[];
+    quasis?: { value: { cooked?: string } }[];
+  };
+  if (value?.type === "Literal" && typeof value.value === "string") return value.value;
+  if (value?.type === "TemplateLiteral" && value.expressions?.length === 0)
+    return value.quasis?.[0]?.value.cooked ?? null;
+  return null;
+};
 
-// The specifier of an `import`/`export … from` clause, a side-effect `import "x"`, a dynamic
-// `import(…)`, or a `require(…)` (`import x = require(…)` included), with a string or template
-// literal. A `from` must be followed by the literal, so `Array.from("x")` is not read as an import.
-// A string that merely contains `from "x"` is read as one, which fails the test rather than
-// passing it.
-const IMPORT_SPECIFIER =
-  /\bfrom\s*["'`]([^"'`]+)["'`]|\bimport\s*["'`]([^"'`]+)["'`]|\b(?:import|require)\s*\(\s*["'`]([^"'`]+)["'`]/g;
+// Every module specifier in a TypeScript file, read from its syntax tree rather than its text, so
+// comments, strings and regular expressions cannot hide or fake one. A specifier that is not a
+// literal is returned as `null`: the scan cannot follow it, so the test refuses it.
+const specifiersOf = (file: string): (string | null)[] => {
+  const found: (string | null)[] = [];
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item);
+      return;
+    }
+    if (typeof node !== "object" || node === null) return;
+    const n = node as Record<string, unknown> & { type?: string };
+    switch (n.type) {
+      case "ImportDeclaration":
+      case "ExportAllDeclaration":
+      case "ExportNamedDeclaration":
+        if (n.source) found.push(literal(n.source));
+        break;
+      case "ImportExpression":
+      case "TSImportType":
+        found.push(literal(n.source));
+        break;
+      case "TSExternalModuleReference":
+        found.push(literal(n.expression));
+        break;
+      case "CallExpression": {
+        const callee = n.callee as { type?: string; name?: string };
+        if (callee?.type === "Identifier" && callee.name === "require")
+          found.push(literal((n.arguments as unknown[])[0]));
+        break;
+      }
+      default:
+        break;
+    }
+    for (const [key, value] of Object.entries(n)) if (key !== "type") walk(value);
+  };
+  walk(parseAst(readFileSync(file, "utf8"), { lang: file.endsWith(".tsx") ? "tsx" : "ts" }));
+  return found;
+};
 
 // A relative specifier names the emitted `.js`; its source is `.ts` or `.tsx`, or a folder's
 // `index`. One that resolves to none of them is reported, not thrown on.
@@ -63,10 +102,11 @@ describe("entry points", () => {
     const visit = (file: string): void => {
       if (seen.has(file)) return;
       seen.add(file);
-      const text = withoutComments(readFileSync(file, "utf8"));
-      for (const [, fromClause, sideEffect, dynamic] of text.matchAll(IMPORT_SPECIFIER)) {
-        const specifier = fromClause ?? sideEffect ?? dynamic;
-        if (specifier === undefined) continue;
+      for (const specifier of specifiersOf(file)) {
+        if (specifier === null) {
+          unresolved.push(`${file.slice(src.length)}: a specifier that is not a literal`);
+          continue;
+        }
         if (!specifier.startsWith(".")) {
           bare.push(`${file.slice(src.length)}: ${specifier}`);
           continue;

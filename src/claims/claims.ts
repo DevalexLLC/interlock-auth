@@ -103,7 +103,10 @@ const sitesOf = (claims: Record<string, unknown>): string[] => {
   if (
     !Array.isArray(value) ||
     value.length === 0 ||
-    !value.every((site) => typeof site === "string" && site !== "" && site === site.trim())
+    // `Array.from`, not `value.every`: `every` skips the holes of a sparse list built in code.
+    !Array.from(value as unknown[]).every(
+      (site) => typeof site === "string" && site !== "" && site === site.trim(),
+    )
   )
     throw new MalformedClaimError("sites");
   return [...new Set(value as string[])];

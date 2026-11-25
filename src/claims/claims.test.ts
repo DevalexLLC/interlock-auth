@@ -1,3 +1,5 @@
+import { runInNewContext } from "node:vm";
+
 import { describe, expect, it } from "vitest";
 
 import { isMalformedClaimError, MalformedClaimError, normalizeClaims } from "./claims.js";
@@ -149,6 +151,9 @@ describe("normalizeClaims", () => {
       ["a list with a non-string entry", ["site-a", 1]],
       ["a list with null", ["site-a", null]],
       ["a list with an empty string", ["site-a", ""]],
+      // eslint-disable-next-line no-sparse-arrays
+      ["a sparse list", [, "site-a"]],
+      ["a list of holes", Object.assign<unknown[], { length: number }>([], { length: 2 })],
       ["a value with leading whitespace", [" site-a"]],
       ["a value with trailing whitespace", ["site-a "]],
       ["a value of whitespace only", ["  "]],
@@ -203,10 +208,21 @@ describe("normalizeClaims", () => {
 
     // Another realm (a `vm` context, a test runner's sandbox) has its own `Error`.
     it("should recognize the error from another realm", () => {
-      const foreign = Object.create(null) as Record<string, unknown>;
-      Object.assign(foreign, { name: "MalformedClaimError", claim: "sites" });
+      const foreign: unknown = runInNewContext(
+        'Object.assign(new Error("x"), { name: "MalformedClaimError", claim: "sites" })',
+      );
 
+      expect(foreign instanceof Error).toBe(false);
       expect(isMalformedClaimError(foreign)).toBe(true);
+    });
+
+    it("should recognize a null-prototype copy of the fields", () => {
+      const copy = Object.assign(Object.create(null) as object, {
+        name: "MalformedClaimError",
+        claim: "sites",
+      });
+
+      expect(isMalformedClaimError(copy)).toBe(true);
     });
 
     it("should keep its name in a copy of its own fields, which the guard recognizes", () => {
