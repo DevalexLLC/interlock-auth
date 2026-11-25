@@ -22,7 +22,7 @@ export interface NormalizedClaims {
   groups: string[];
   /** Tenant identifiers, from `tenant_ids`, without repeats. */
   tenants: string[];
-  /** Site names from the `sites` user attribute, without repeats. Empty when the claim is absent. */
+  /** Site names from the `sites` attribute, without repeats. Empty when the claim is absent. */
   sites: string[];
   /** Names of groups under the internal root, without repeats. */
   internal_groups: string[];
@@ -51,7 +51,7 @@ export class MalformedClaimError extends Error {
   }
 }
 
-/** What `isMalformedClaimError` establishes: the fields, not the class or `Error`'s other members. */
+/** What `isMalformedClaimError` establishes: the fields, not the class or other `Error` members. */
 export interface MalformedClaim {
   name: "MalformedClaimError";
   claim: string;
@@ -164,8 +164,8 @@ export function normalizeClaims(claims: object): NormalizedClaims {
   // A loosely typed caller can pass what is not a payload at all (a failed decode's `undefined`).
   // Refused like a malformed claim, so it is a 403 and not a `TypeError` that becomes a 500. Any
   // object other than a list is read, a class instance or a wrapped payload included, as before.
-  // A thenable is refused too: it is what a forgotten `await` on an async verify passes. So is jose's
-  // whole `jwtVerify` result where its `.payload` was meant. Read as payloads, either would yield a
+  // A thenable is refused too: it is what a forgotten `await` on an async verify passes. So is
+  // jose's whole `jwtVerify` result where its `.payload` was meant. Read as payloads, either would yield a
   // caller with no claims rather than an error.
   if (!isRecord(claims) || typeof claims.then === "function" || isVerifyResult(claims))
     throw new MalformedClaimError("payload");
