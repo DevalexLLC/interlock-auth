@@ -210,7 +210,7 @@ describe("normalizeClaims", () => {
     });
 
     it("should keep its name in a copy of its own fields", () => {
-      expect({ ...new MalformedClaimError("sites") }).toMatchObject({
+      expect(Object.fromEntries(Object.entries(new MalformedClaimError("sites")))).toMatchObject({
         name: "MalformedClaimError",
         claim: "sites",
       });
