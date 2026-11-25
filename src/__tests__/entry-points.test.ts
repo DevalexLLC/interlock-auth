@@ -41,6 +41,10 @@ const specifiersOf = (file: string): (string | null)[] => {
       case "TSImportType":
         found.push(literal(n.source));
         break;
+      // `declare module "x" { … }`, a module augmentation, ties the declarations to `x`.
+      case "TSModuleDeclaration":
+        if ((n.id as { type?: string })?.type === "Literal") found.push(literal(n.id));
+        break;
       case "TSExternalModuleReference":
         found.push(literal(n.expression));
         break;
@@ -55,7 +59,13 @@ const specifiersOf = (file: string): (string | null)[] => {
     }
     for (const [key, value] of Object.entries(n)) if (key !== "type") walk(value);
   };
-  walk(parseAst(readFileSync(file, "utf8"), { lang: file.endsWith(".tsx") ? "tsx" : "ts" }));
+  const text = readFileSync(file, "utf8");
+  walk(parseAst(text, { lang: file.endsWith(".tsx") ? "tsx" : "ts" }));
+  // Triple-slash directives are comments to the parser, so they are read from the text.
+  for (const [, specifier] of text.matchAll(
+    /^\/\/\/\s*<reference\s+(?:types|path)\s*=\s*["']([^"']+)["']/gm,
+  ))
+    if (specifier !== undefined) found.push(specifier);
   return found;
 };
 

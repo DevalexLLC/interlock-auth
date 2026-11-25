@@ -30,7 +30,13 @@ export class MalformedClaimError extends Error {
   // On the prototype, not an instance field: a field is set after `super()` returns, by when the
   // stack trace has already been written with the inherited name `Error`.
   static {
-    this.prototype.name = "MalformedClaimError";
+    // Not enumerable, as `Error.prototype.name` is, so a `for…in` over the error does not list it.
+    Object.defineProperty(this.prototype, "name", {
+      value: "MalformedClaimError",
+      writable: true,
+      configurable: true,
+      enumerable: false,
+    });
   }
 
   constructor(
@@ -119,9 +125,12 @@ const sitesOf = (claims: Record<string, unknown>): string[] => {
  * stays. For every claim but `sites`, a claim of the wrong shape, or an entry that is not a
  * non-empty string, is dropped rather than thrown on, which grants nothing. `sites` is checked
  * instead, because dropping it would widen access: a malformed one throws
- * `MalformedClaimError`. Pure.
+ * `MalformedClaimError`, as does an argument that is not an object. Pure.
  */
 export function normalizeClaims(claims: Record<string, unknown>): NormalizedClaims {
+  // A loosely typed caller can pass what is not a payload at all (a failed decode's `undefined`).
+  // Refused like a malformed claim, so it is a 403 and not a `TypeError` that becomes a 500.
+  if (!isPlainObject(claims)) throw new MalformedClaimError("payload");
   return {
     roles: [...new Set([...rolesOf(claims.realm_access), ...clientRoles(claims.resource_access)])],
     groups: strings(claims.groups),

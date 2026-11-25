@@ -36,6 +36,17 @@ describe("normalizeClaims", () => {
     });
   });
 
+  it.each([
+    ["undefined", undefined],
+    ["null", null],
+    ["a string", "token"],
+    ["a list", []],
+  ])("should refuse a payload that is %s", (_case, payload) => {
+    expect(() => normalizeClaims(payload as unknown as Record<string, unknown>)).toThrow(
+      expect.objectContaining({ name: "MalformedClaimError", claim: "payload" }),
+    );
+  });
+
   it("should give empty lists for claims that are missing", () => {
     expect(normalizeClaims({ sub: "f3a1" })).toEqual(EMPTY);
   });
@@ -230,6 +241,14 @@ describe("normalizeClaims", () => {
 
       expect(copy).toMatchObject({ name: "MalformedClaimError", claim: "sites" });
       expect(isMalformedClaimError(copy)).toBe(true);
+    });
+
+    it("should not make its name enumerable on the prototype", () => {
+      const inherited: string[] = [];
+      // oxlint-disable-next-line guard-for-in
+      for (const key in new MalformedClaimError("sites")) inherited.push(key);
+
+      expect(inherited).toEqual(["claim", "name"]);
     });
 
     it("should name the error in its stack trace", () => {
