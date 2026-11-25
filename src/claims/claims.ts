@@ -2,13 +2,16 @@ import { isPlainObject } from "../core/plain-object.js";
 
 /** The claim shape the APIs authorize on, as their previous OpenID provider issued it. */
 export interface NormalizedClaims {
-  /** Realm roles bare, and each client's roles as `<client>:<role>`, without repeats. */
+  /**
+   * Realm roles bare, and each client's roles as `<client>:<role>`, without repeats. A role whose
+   * name holds `:` is dropped, so no entry can be read two ways.
+   */
   roles: string[];
   /** Group names, bare rather than paths. */
   groups: string[];
   /** Tenant identifiers, from `tenant_ids`. */
   tenants: string[];
-  /** Site names from the `sites` user attribute. Empty when the token has no `sites` claim. */
+  /** Site names from the `sites` user attribute, without repeats. Empty when the claim is absent. */
   sites: string[];
   /** Names of groups under the internal root. */
   internal_groups: string[];
@@ -35,10 +38,16 @@ const strings = (value: unknown): string[] =>
     ? value.filter((item): item is string => typeof item === "string" && item !== "")
     : [];
 
-/** `<object>.roles` of an access claim such as `realm_access`. */
-const rolesOf = (access: unknown): string[] => (isPlainObject(access) ? strings(access.roles) : []);
+/**
+ * `<object>.roles` of an access claim such as `realm_access`, without any role whose name holds a
+ * `:`. Keycloak allows one, but a realm role named `irongate-api:admin` would read as that client's
+ * role, and a client role `b:c` of client `a` as role `c` of client `a:b`. With no `:` in a role
+ * name, every entry splits one way at its last `:`. A dropped role grants nothing.
+ */
+const rolesOf = (access: unknown): string[] =>
+  isPlainObject(access) ? strings(access.roles).filter((role) => !role.includes(":")) : [];
 
-/** `resource_access` as `<client>:<role>` entries. */
+/** `resource_access` as `<client>:<role>` entries. A client ID may hold `:` (SAML clients). */
 const clientRoles = (resourceAccess: unknown): string[] =>
   isPlainObject(resourceAccess)
     ? Object.entries(resourceAccess).flatMap(([client, access]) =>
@@ -50,7 +59,7 @@ const clientRoles = (resourceAccess: unknown): string[] =>
  * `sites` is reductive: an absent claim means every site in the user's tenants, so a present
  * claim that is not what the realm issues must not read as absent. The mapper omits the claim
  * for a user with no value and never emits `[]`, so a present claim is a non-empty array of
- * non-empty strings or it is refused.
+ * non-empty strings or it is refused. Repeats are dropped, as they are for `roles`.
  */
 const sitesOf = (claims: Record<string, unknown>): string[] => {
   const value = claims.sites;
@@ -61,7 +70,7 @@ const sitesOf = (claims: Record<string, unknown>): string[] => {
     !value.every((site) => typeof site === "string" && site !== "")
   )
     throw new MalformedClaimError("sites");
-  return [...(value as string[])];
+  return [...new Set(value as string[])];
 };
 
 /**

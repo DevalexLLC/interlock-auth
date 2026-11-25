@@ -1,8 +1,17 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+
+// A relative specifier names the emitted `.js`; its source is `.ts` or `.tsx`, or a folder's
+// `index`. One that resolves to none of them is reported, not thrown on.
+const sourceOf = (from: string, specifier: string): string | undefined => {
+  const target = path.resolve(path.dirname(from), specifier.replace(/\.js$/, ""));
+  return [".ts", ".tsx", "/index.ts", "/index.tsx"]
+    .map((suffix) => target + suffix)
+    .find((candidate) => existsSync(candidate));
+};
 
 // Pins the entry points' contract. The root entry carries the core; the entries not yet filled
 // load and export nothing, and the item that fills one replaces its case here with real tests.
@@ -30,21 +39,27 @@ describe("entry points", () => {
     const src = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
     const seen = new Set<string>();
     const bare: string[] = [];
+    const unresolved: string[] = [];
     const visit = (file: string): void => {
       if (seen.has(file)) return;
       seen.add(file);
       const text = readFileSync(file, "utf8");
       for (const [, specifier] of text.matchAll(/(?:from|import)\s*\(?\s*["']([^"']+)["']/g)) {
         if (specifier === undefined) continue;
-        if (specifier.startsWith("."))
-          visit(path.resolve(path.dirname(file), specifier.replace(/\.js$/, ".ts")));
-        else bare.push(`${file.slice(src.length)}: ${specifier}`);
+        if (!specifier.startsWith(".")) {
+          bare.push(`${file.slice(src.length)}: ${specifier}`);
+          continue;
+        }
+        const source = sourceOf(file, specifier);
+        if (source === undefined) unresolved.push(`${file.slice(src.length)}: ${specifier}`);
+        else visit(source);
       }
     };
     visit(path.resolve(src, "claims/index.ts"));
 
     expect(seen.size).toBeGreaterThan(1);
     expect(bare).toEqual([]);
+    expect(unresolved).toEqual([]);
   });
 
   it.each([["./next", async () => import("../next/index.js")]])(

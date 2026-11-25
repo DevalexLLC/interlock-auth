@@ -66,6 +66,32 @@ describe("normalizeClaims", () => {
         }).roles,
       ).toEqual(["interlock:viewer"]);
     });
+
+    // With no `:` in a role name, `<client>:<role>` splits one way at its last `:`, so no realm
+    // role reads as a client role and no two client roles read alike.
+    it("should drop a realm role whose name holds a colon", () => {
+      expect(
+        normalizeClaims({
+          realm_access: { roles: ["user", "irongate-api:admin"] },
+        }).roles,
+      ).toEqual(["user"]);
+    });
+
+    it("should drop a client role whose name holds a colon", () => {
+      expect(
+        normalizeClaims({
+          resource_access: { a: { roles: ["b:c", "d"] }, "a:b": { roles: ["c"] } },
+        }).roles,
+      ).toEqual(["a:d", "a:b:c"]);
+    });
+
+    it("should keep a client ID that holds a colon", () => {
+      expect(
+        normalizeClaims({
+          resource_access: { "urn:example:sp": { roles: ["viewer"] } },
+        }).roles,
+      ).toEqual(["urn:example:sp:viewer"]);
+    });
   });
 
   // Never thrown on: a bad claim of these grants nothing rather than failing the request.
@@ -130,6 +156,13 @@ describe("normalizeClaims", () => {
       expect(error).toBeInstanceOf(MalformedClaimError);
       expect(error).toMatchObject({ name: "MalformedClaimError", claim: "sites" });
       expect((error as Error).message).not.toContain("secret-site");
+    });
+
+    it("should drop repeated sites and keep the first order", () => {
+      expect(normalizeClaims({ sites: ["site-b", "site-a", "site-b"] }).sites).toEqual([
+        "site-b",
+        "site-a",
+      ]);
     });
 
     it("should return a copy, not the token's list", () => {

@@ -105,7 +105,9 @@ It verifies nothing itself; the caller passes the payload of a token it has alre
 | `internal_groups`           | `internal_groups`     | Dropped, as are non-string entries |
 
 Client roles carry their client's name, so `irongate-api:admin` never reads as a realm role
-named `admin`. `sites` is reductive: an absent claim means every site in the user's tenants,
+named `admin`. A realm or client role whose own name holds `:` is dropped, so every entry splits
+one way at its last `:` and no realm role can pass for a client role; a client ID may hold `:`.
+Repeats are dropped from `roles` and `sites`. `sites` is reductive: an absent claim means every site in the user's tenants,
 and the result is `[]`. Dropping a malformed one would read the same way and widen access, so
 a present claim that is not a non-empty array of non-empty strings (`[]` included) throws
 `MalformedClaimError`, whose `claim` names the claim and never its value. A refresh cannot repair
