@@ -36,7 +36,19 @@ describe("normalizeClaims", () => {
     });
   });
 
-  // A token whose own claims happen to be named `payload` and `protectedHeader` still has a `sub`.
+  // A token whose claims happen to be named `payload` and `protectedHeader` carries others too, with
+  // or without a `sub` (Keycloak omits it when a client lacks the `basic` scope).
+  it("should read a token without sub that carries payload and protectedHeader claims", () => {
+    expect(
+      normalizeClaims({
+        iss: "https://keycloak.example/realms/r",
+        payload: { a: 1 },
+        protectedHeader: { alg: "RS256" },
+        groups: ["NY"],
+      }).groups,
+    ).toEqual(["NY"]);
+  });
+
   it("should read a token that carries payload and protectedHeader claims", () => {
     expect(
       normalizeClaims({
@@ -91,6 +103,10 @@ describe("normalizeClaims", () => {
       "a whole jwtVerify result",
       { payload: { sites: ["site-a"] }, protectedHeader: { alg: "RS256" } },
     ],
+    [
+      "a whole jwtVerify result with its key",
+      { payload: { sites: ["site-a"] }, protectedHeader: { alg: "RS256" }, key: {} },
+    ],
   ])("should refuse a payload that is %s", (_case, payload) => {
     expect(() => normalizeClaims(payload as unknown as object)).toThrow(
       expect.objectContaining({ name: "MalformedClaimError", claim: "payload" }),
@@ -120,6 +136,13 @@ describe("normalizeClaims", () => {
           resource_access: { interlock: { roles: ["viewer", "viewer"] } },
         }).roles,
       ).toEqual(["user", "interlock:viewer"]);
+    });
+
+    it("should skip a client whose ID is empty", () => {
+      expect(
+        normalizeClaims({ resource_access: { "": { roles: ["admin"] }, a: { roles: ["b"] } } })
+          .roles,
+      ).toEqual(["a:b"]);
     });
 
     it("should skip a client with no roles", () => {
@@ -206,6 +229,7 @@ describe("normalizeClaims", () => {
       // Joiners belong to names in some scripts (Persian, Indic) and are not refused.
       ["a value with a zero-width non-joiner", ["\u0645\u06CC\u200C\u0631\u0648\u062F"]],
       ["a value with a zero-width joiner", ["site\u200Da"]],
+      ["a value with a soft hyphen", ["site\u00ADa"]],
     ])("should keep %s", (_case, sites) => {
       expect(normalizeClaims({ sites }).sites).toEqual(sites);
     });
@@ -235,6 +259,9 @@ describe("normalizeClaims", () => {
       ["a value with an Arabic letter mark", ["site-a\u061C"]],
       ["a value with a word joiner", ["site\u2060a"]],
       ["a value with a line separator", ["site-a\u2028"]],
+      ["a value with a Mongolian vowel separator", ["site-a\u180E"]],
+      ["a value with a tag character", ["site-a\u{E0041}"]],
+      ["a value with a paragraph separator", ["site-a\u2029"]],
     ])("should refuse %s", (_case, sites) => {
       expect(() => normalizeClaims({ sites })).toThrow(MalformedClaimError);
     });

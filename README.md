@@ -115,13 +115,13 @@ at its last `:` and no realm role can pass for a client role; a client ID may ho
 comes back without repeats, in first-seen order. `sites` is reductive: an absent claim means every
 site in the user's tenants, and the result is `[]`. Dropping a malformed one would read the same way
 and widen access, so a present claim that is not a non-empty array of non-empty strings (`[]`
-included), or that holds a value with leading or trailing whitespace, a control character, or an
-invisible character pasted text carries (a byte-order mark, zero-width space, word joiner, line or
-paragraph separator, or bidirectional mark or control; zero-width joiners and non-joiners, which
-belong to names in some scripts, are kept), throws `MalformedClaimError`, whose `claim` names the
-claim and never its value. A refresh cannot repair it, so a caller answers 403, not 401. Recognize
-it with `isMalformedClaimError(error)` rather than `instanceof`, which fails when two copies of the
-package are installed.
+included), or that holds a value with leading or trailing whitespace, or any control or format
+character or line or paragraph separator (a byte-order mark, a zero-width space, a bidirectional
+mark, a tag character), except the zero-width joiner, non-joiner, and soft hyphen, which belong to
+names in some scripts, throws `MalformedClaimError`, whose `claim` names the claim and never its
+value. A refresh cannot repair it, so a caller answers 403, not 401. Recognize it with
+`isMalformedClaimError(error)` rather than `instanceof`, which fails when two copies of the package
+are installed.
 
 The entry imports nothing from Better Auth, Kysely, React, or Next.js. Those peers are optional
 from `0.3.0`, so a backend that installs the package for `./claims` gets none of them. The root

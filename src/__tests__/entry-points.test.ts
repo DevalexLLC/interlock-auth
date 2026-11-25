@@ -21,9 +21,10 @@ const literal = (node: unknown): string | null => {
 
 // Every module specifier in a TypeScript file, read from its syntax tree rather than its text, so
 // comments, strings and regular expressions cannot hide or fake one. A specifier that is not a
-// literal is returned as `null`: the scan cannot follow it, so the test refuses it. A peer loaded
-// through `createRequire` is seen only as the bare `node:module` import it needs; CI's install
-// without peers is what proves the entry loads without them.
+// literal is returned as `null`: the scan cannot follow it, so the test refuses it. It does not read
+// loaders reached through a member or a meta property (`require.resolve`, `import.meta.resolve`,
+// `createRequire(…)(…)`, seen only as its bare `node:module` import); CI's install without peers is
+// what proves the entry loads without them.
 const specifiersOf = (file: string): (string | null)[] => {
   const found: (string | null)[] = [];
   const walk = (node: unknown): void => {

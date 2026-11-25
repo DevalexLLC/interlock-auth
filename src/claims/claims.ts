@@ -96,19 +96,19 @@ const rolesOf = (access: unknown): string[] =>
 const clientRoles = (resourceAccess: unknown): string[] =>
   isRecord(resourceAccess)
     ? Object.entries(resourceAccess).flatMap(([client, access]) =>
-        rolesOf(access).map((role) => `${client}:${role}`),
+        // An empty client ID would give `:<role>`; Keycloak issues none, so it is skipped.
+        client === "" ? [] : rolesOf(access).map((role) => `${client}:${role}`),
       )
     : [];
 
 /**
- * Control characters, and the invisible characters that turn up in pasted text: a byte-order mark,
- * a zero-width space, the word joiner and invisible operators (U+2060-U+2064), the line and
- * paragraph separators, and every bidirectional mark and control (LRM, RLM, ALM, the embeddings,
- * overrides and isolates). Other format characters (the zero-width joiner and non-joiner, a soft
- * hyphen) are left alone, since they belong to names in some scripts.
+ * Every control (`Cc`) and format (`Cf`) character, and the line and paragraph separators, except
+ * the three format characters that belong to names in some scripts: the zero-width non-joiner and
+ * joiner (U+200C, U+200D) and the soft hyphen (U+00AD). Refusing the whole categories, rather than
+ * a list, covers what pasted text carries (a byte-order mark, a zero-width space, bidirectional
+ * marks and controls, tag characters) without chasing each one.
  */
-const INVISIBLE =
-  /[\p{Cc}\uFEFF\u200B\u200E\u200F\u061C\u2028\u2029\u202A-\u202E\u2060-\u2064\u2066-\u2069]/u;
+const INVISIBLE = /(?!\u200C|\u200D|\u00AD)[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 
 /**
  * `sites` is reductive: an absent claim means every site in the user's tenants, so a present
@@ -139,12 +139,15 @@ const sitesOf = (claims: Record<string, unknown>): string[] => {
 };
 
 /**
- * jose's `jwtVerify` result, `{ payload, protectedHeader }`, rather than its payload. A real token
- * always carries its own `sub`, so one that happens to hold claims of those two names is not taken
- * for it.
+ * jose's `jwtVerify` result rather than its payload: exactly `payload` and `protectedHeader`, and
+ * optionally `key`, with nothing else. A real token carries other claims (`iss`, `exp`), so one
+ * that happens to hold claims of those names is still read, with or without a `sub`.
  */
+const VERIFY_RESULT_KEYS = new Set(["payload", "protectedHeader", "key"]);
 const isVerifyResult = (value: Record<string, unknown>): boolean =>
-  value.sub === undefined && isRecord(value.payload) && isRecord(value.protectedHeader);
+  isRecord(value.payload) &&
+  isRecord(value.protectedHeader) &&
+  Object.keys(value).every((key) => VERIFY_RESULT_KEYS.has(key));
 
 /**
  * Maps Keycloak's claims onto `NormalizedClaims` (the `interlock` README, "Claims"): realm roles
