@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { MalformedClaimError, normalizeClaims } from "./claims.js";
+import { isMalformedClaimError, MalformedClaimError, normalizeClaims } from "./claims.js";
 
 const EMPTY = { roles: [], groups: [], tenants: [], sites: [], internal_groups: [] };
 
@@ -149,6 +149,9 @@ describe("normalizeClaims", () => {
       ["a list with a non-string entry", ["site-a", 1]],
       ["a list with null", ["site-a", null]],
       ["a list with an empty string", ["site-a", ""]],
+      ["a value with leading whitespace", [" site-a"]],
+      ["a value with trailing whitespace", ["site-a "]],
+      ["a value of whitespace only", ["  "]],
     ])("should refuse %s", (_case, sites) => {
       expect(() => normalizeClaims({ sites })).toThrow(MalformedClaimError);
     });
@@ -178,6 +181,36 @@ describe("normalizeClaims", () => {
     it("should return a copy, not the token's list", () => {
       const sites = ["site-a"];
       expect(normalizeClaims({ sites }).sites).not.toBe(sites);
+    });
+  });
+
+  describe("isMalformedClaimError", () => {
+    it("should recognize the error", () => {
+      expect(isMalformedClaimError(new MalformedClaimError("sites"))).toBe(true);
+    });
+
+    // Another installed copy of the package has its own class, so `instanceof` fails there.
+    it("should recognize the error from another copy of the class", () => {
+      class OtherCopy extends Error {
+        override readonly name = "MalformedClaimError";
+        readonly claim = "sites";
+      }
+      const error = new OtherCopy();
+
+      expect(error instanceof MalformedClaimError).toBe(false);
+      expect(isMalformedClaimError(error)).toBe(true);
+    });
+
+    it.each([
+      ["another error", new Error("sites")],
+      [
+        "an error of the same name without a claim",
+        Object.assign(new Error("x"), { name: "MalformedClaimError" }),
+      ],
+      ["a plain object", { name: "MalformedClaimError", claim: "sites" }],
+      ["undefined", undefined],
+    ])("should not recognize %s", (_case, value) => {
+      expect(isMalformedClaimError(value)).toBe(false);
     });
   });
 });

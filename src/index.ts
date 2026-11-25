@@ -4,7 +4,12 @@
 // `./claims` entry. Free of React and Next.js, so a server or a test process can import it without
 // either.
 
-export { MalformedClaimError, normalizeClaims, type NormalizedClaims } from "./claims/index.js";
+export {
+  isMalformedClaimError,
+  MalformedClaimError,
+  normalizeClaims,
+  type NormalizedClaims,
+} from "./claims/index.js";
 export {
   cookieSettings,
   createKeycloakAuthOptions,

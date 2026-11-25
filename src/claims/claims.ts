@@ -19,7 +19,9 @@ export interface NormalizedClaims {
 
 /**
  * A claim the realm's contract fixes the shape of arrived in another shape. The caller refuses
- * the request: a refresh cannot repair it, so this is a 403 rather than a 401.
+ * the request: a refresh cannot repair it, so this is a 403 rather than a 401. Recognize it with
+ * `isMalformedClaimError`, which also holds when two copies of the package are installed and
+ * `instanceof` would compare against the other copy's class.
  */
 export class MalformedClaimError extends Error {
   override readonly name = "MalformedClaimError";
@@ -31,6 +33,12 @@ export class MalformedClaimError extends Error {
     super(`The token's ${claim} claim is malformed`);
   }
 }
+
+/** Whether `error` is a `MalformedClaimError`, from this copy of the package or another. */
+export const isMalformedClaimError = (error: unknown): error is MalformedClaimError =>
+  error instanceof Error &&
+  error.name === "MalformedClaimError" &&
+  typeof (error as { claim?: unknown }).claim === "string";
 
 /**
  * The strings of a claim that should be a string array, without repeats, in first-seen order;
@@ -62,7 +70,9 @@ const clientRoles = (resourceAccess: unknown): string[] =>
  * `sites` is reductive: an absent claim means every site in the user's tenants, so a present
  * claim that is not what the realm issues must not read as absent. The mapper omits the claim
  * for a user with no value and never emits `[]`, so a present claim is a non-empty array of
- * non-empty strings or it is refused. Repeats are dropped, as they are for `roles`.
+ * non-empty strings or it is refused. A value is an exact `Site.name`, so one with leading or
+ * trailing whitespace, which can match no site, is refused too, rather than leaving the user an
+ * empty result with nothing to diagnose. Repeats are dropped, as they are for every list.
  */
 const sitesOf = (claims: Record<string, unknown>): string[] => {
   const value = claims.sites;
@@ -70,7 +80,7 @@ const sitesOf = (claims: Record<string, unknown>): string[] => {
   if (
     !Array.isArray(value) ||
     value.length === 0 ||
-    !value.every((site) => typeof site === "string" && site !== "")
+    !value.every((site) => typeof site === "string" && site !== "" && site === site.trim())
   )
     throw new MalformedClaimError("sites");
   return [...new Set(value as string[])];

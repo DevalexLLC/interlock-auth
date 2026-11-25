@@ -34,7 +34,11 @@ describe("entry points", () => {
     const claims = await import("../claims/index.js");
     const root = await import("../index.js");
 
-    expect(Object.keys(claims).toSorted()).toEqual(["MalformedClaimError", "normalizeClaims"]);
+    expect(Object.keys(claims).toSorted()).toEqual([
+      "MalformedClaimError",
+      "isMalformedClaimError",
+      "normalizeClaims",
+    ]);
     expect(root.normalizeClaims).toBe(claims.normalizeClaims);
     expect(root.MalformedClaimError).toBe(claims.MalformedClaimError);
   });

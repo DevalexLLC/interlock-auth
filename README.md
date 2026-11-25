@@ -86,7 +86,7 @@ entry exports:
 ## The `./claims` entry
 
 ```ts
-import { MalformedClaimError, normalizeClaims } from "@devalexllc/interlock-auth/claims";
+import { isMalformedClaimError, normalizeClaims } from "@devalexllc/interlock-auth/claims";
 
 const claims = normalizeClaims(verifiedPayload);
 // { roles, groups, tenants, sites, internal_groups }
@@ -104,14 +104,16 @@ It verifies nothing itself; the caller passes the payload of a token it has alre
 | `sites`                     | `sites`               | Throws `MalformedClaimError`       |
 | `internal_groups`           | `internal_groups`     | Dropped, as are non-string entries |
 
-Client roles carry their client's name, so `irongate-api:admin` never reads as a realm role
-named `admin`. A realm or client role whose own name holds `:` is dropped, so every entry splits
-one way at its last `:` and no realm role can pass for a client role; a client ID may hold `:`.
-Every list comes back without repeats, in first-seen order. `sites` is reductive: an absent claim means every site in the user's tenants,
-and the result is `[]`. Dropping a malformed one would read the same way and widen access, so
-a present claim that is not a non-empty array of non-empty strings (`[]` included) throws
-`MalformedClaimError`, whose `claim` names the claim and never its value. A refresh cannot repair
-it, so a caller answers 403, not 401.
+Client roles carry their client's name, so `irongate-api:admin` never reads as a realm role named
+`admin`. A realm or client role whose own name holds `:` is dropped, so every entry splits one way
+at its last `:` and no realm role can pass for a client role; a client ID may hold `:`. Every list
+comes back without repeats, in first-seen order. `sites` is reductive: an absent claim means every
+site in the user's tenants, and the result is `[]`. Dropping a malformed one would read the same way
+and widen access, so a present claim that is not a non-empty array of non-empty strings (`[]`
+included), or that holds a value with leading or trailing whitespace, throws `MalformedClaimError`,
+whose `claim` names the claim and never its value. A refresh cannot repair it, so a caller answers
+403, not 401. Recognize it with `isMalformedClaimError(error)` rather than `instanceof`, which fails
+when two copies of the package are installed.
 
 The entry imports nothing from Better Auth, Kysely, React, or Next.js. Those peers are optional
 from `0.3.0`, so a backend that installs the package for `./claims` gets none of them. The root

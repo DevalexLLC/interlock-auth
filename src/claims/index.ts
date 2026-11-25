@@ -3,4 +3,9 @@
 // peers; `src/__tests__/entry-points.test.ts` and CI's package check hold it to that. The root
 // entry re-exports it.
 
-export { MalformedClaimError, normalizeClaims, type NormalizedClaims } from "./claims.js";
+export {
+  isMalformedClaimError,
+  MalformedClaimError,
+  normalizeClaims,
+  type NormalizedClaims,
+} from "./claims.js";
